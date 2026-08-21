@@ -9,37 +9,60 @@ export interface DetectionResult {
   currentValue: number;
   priorValue: number;
   changePct: number;
-  zScore: number;
+  bandLow: number;
+  bandHigh: number;
   isSignificant: boolean;
+  reason: string;
 }
 
 const SIGNIFICANCE_THRESHOLD = 1.5;
 const TRAILING_MONTHS = 6;
 
+function mean(values: number[]): number {
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
 function stdev(values: number[]): number {
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+  const m = mean(values);
+  const variance = values.reduce((a, b) => a + (b - m) ** 2, 0) / values.length;
   return Math.sqrt(variance);
+}
+
+function pctChange(from: number, to: number): number {
+  return from === 0 ? 0 : ((to - from) / from) * 100;
 }
 
 export class DetectionService {
   constructor(private ordersRepository: OrdersRepository) {}
 
-  async run(metric: MetricConfig, segmentValue: string): Promise<DetectionResult> {
-    const series = await this.ordersRepository.monthlySeries(metric, segmentValue, TRAILING_MONTHS + 1);
+  async run(metric: MetricConfig, segmentValue: string, asOfMonth?: string): Promise<DetectionResult> {
+    const series = await this.ordersRepository.monthlySeries(metric, segmentValue, TRAILING_MONTHS + 1, asOfMonth);
 
-    if (series.length < 2) {
+    if (series.length < 3) {
       throw new Error(`Not enough monthly data for ${metric.key} / ${segmentValue}`);
     }
 
     const current = series[series.length - 1]!;
-    const trailing = series.slice(0, series.length - 1);
-    const trailingValues = trailing.map((point) => point.total);
-    const mean = trailingValues.reduce((a, b) => a + b, 0) / trailingValues.length;
-    const sd = stdev(trailingValues) || 1;
-    const zScore = (current.total - mean) / sd;
-    const prior = trailing[trailing.length - 1]!;
-    const changePct = prior.total === 0 ? 0 : ((current.total - prior.total) / prior.total) * 100;
+    const historical = series.slice(0, series.length - 1);
+    const prior = historical[historical.length - 1]!;
+
+    const historicalChanges: number[] = [];
+    for (let i = 1; i < historical.length; i++) {
+      historicalChanges.push(pctChange(historical[i - 1]!.total, historical[i]!.total));
+    }
+
+    const bandMean = mean(historicalChanges);
+    const bandSd = stdev(historicalChanges) || 1;
+    const bandLow = bandMean - SIGNIFICANCE_THRESHOLD * bandSd;
+    const bandHigh = bandMean + SIGNIFICANCE_THRESHOLD * bandSd;
+
+    const changePct = pctChange(prior.total, current.total);
+    const isSignificant = changePct < bandLow || changePct > bandHigh;
+
+    const bandText = `the normal range of ${bandLow.toFixed(1)}% to ${bandHigh.toFixed(1)}% over the trailing ${historical.length} months`;
+    const reason = isSignificant
+      ? `${metric.label} ${changePct < 0 ? "fell" : "rose"} ${Math.abs(changePct).toFixed(1)}%, outside ${bandText}`
+      : `${metric.label} moved ${changePct.toFixed(1)}%, within ${bandText}`;
 
     return {
       metric,
@@ -49,8 +72,10 @@ export class DetectionService {
       currentValue: current.total,
       priorValue: prior.total,
       changePct,
-      zScore,
-      isSignificant: Math.abs(zScore) >= SIGNIFICANCE_THRESHOLD,
+      bandLow,
+      bandHigh,
+      isSignificant,
+      reason,
     };
   }
 }

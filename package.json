@@ -9,7 +9,9 @@
     "migrate": "bun src/db/migrate.ts",
     "load:superstore": "bun scripts/load-superstore.ts",
     "seed:calendar": "bun scripts/seed-calendar.ts",
-    "seed:notes": "bun scripts/seed-synthetic-notes.ts"
+    "seed:notes": "bun scripts/seed-synthetic-notes.ts",
+    "eval": "bun scripts/eval-pipeline.ts",
+    "eval:full": "bun scripts/eval-pipeline.ts --full"
   },
   "devDependencies": {
     "@types/bun": "latest",

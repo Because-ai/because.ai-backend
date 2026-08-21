@@ -27,9 +27,9 @@ export class FindingsService {
     private cachedFindings: CachedFindingsRepository
   ) {}
 
-  async run(metricKey: string, segmentValue: string): Promise<FindingsResult> {
+  async run(metricKey: string, segmentValue: string, asOfMonth?: string): Promise<FindingsResult> {
     try {
-      const result = await this.runLive(metricKey, segmentValue);
+      const result = await this.runLive(metricKey, segmentValue, asOfMonth);
       return { ...result, source: "live" };
     } catch (err) {
       console.error("findings pipeline failed, falling back to cache", err);
@@ -41,9 +41,9 @@ export class FindingsService {
     }
   }
 
-  private async runLive(metricKey: string, segmentValue: string): Promise<{ insights: Insight[]; evidence: EvidenceMap }> {
+  private async runLive(metricKey: string, segmentValue: string, asOfMonth?: string): Promise<{ insights: Insight[]; evidence: EvidenceMap }> {
     const metric = getMetricConfig(metricKey);
-    const detectionResult = await this.detection.run(metric, segmentValue);
+    const detectionResult = await this.detection.run(metric, segmentValue, asOfMonth);
 
     const { start: currentStart, end: currentEnd } = monthRange(detectionResult.currentMonth);
     const priorMonthKey = previousMonth(detectionResult.currentMonth);
@@ -71,18 +71,19 @@ export class FindingsService {
     };
 
     if (!detectionResult.isSignificant) {
-      const insight = this.buildSuppressedInsight(
-        baseInsight,
-        `Change of ${detectionResult.changePct.toFixed(1)}% is within normal month-to-month variance for ${metric.label.toLowerCase()} in ${segmentValue} (z-score ${detectionResult.zScore.toFixed(2)}).`
-      );
-      await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: {} });
+      const insight = this.buildSuppressedInsight(baseInsight, detectionResult.reason);
+      if (!asOfMonth) {
+        await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: {} });
+      }
       return { insights: [insight], evidence: {} };
     }
 
     const calendarReason = await this.suppression.check(segmentValue, currentStart, currentEnd);
     if (calendarReason) {
       const insight = this.buildSuppressedInsight(baseInsight, calendarReason);
-      await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: {} });
+      if (!asOfMonth) {
+        await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: {} });
+      }
       return { insights: [insight], evidence: {} };
     }
 
@@ -128,7 +129,9 @@ export class FindingsService {
       },
     };
 
-    await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
+    if (!asOfMonth) {
+      await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
+    }
 
     return { insights: [insight], evidence: evidenceMap };
   }

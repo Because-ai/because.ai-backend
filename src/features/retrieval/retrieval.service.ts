@@ -2,7 +2,7 @@ import type { Evidence } from "../../lib/contract";
 import type { VoyageClient } from "../../lib/voyage";
 import type { NotesRepository } from "../../repositories/notes.repository";
 
-const RETRIEVAL_LIMIT = 6;
+const RETRIEVAL_LIMIT = 8;
 
 export class RetrievalService {
   constructor(private notesRepository: NotesRepository, private voyage: VoyageClient) {}

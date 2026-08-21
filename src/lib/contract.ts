@@ -88,16 +88,15 @@ export const narrativeGenerationSchema = z.object({
 });
 export type NarrativeGeneration = z.infer<typeof narrativeGenerationSchema>;
 
+export const sentenceVerdictSchema = z.object({
+  index: z.number(),
+  verdict: z.enum(["supported", "unsupported", "partly"]),
+  reason: z.string().optional(),
+});
+export type SentenceVerdict = z.infer<typeof sentenceVerdictSchema>;
+
 export const verifierOutputSchema = z.object({
-  sentenceVerdicts: z.array(
-    z.object({
-      index: z.number(),
-      supported: z.boolean(),
-      reason: z.string().optional(),
-    })
-  ),
-  level: verdictLevelSchema,
-  coveragePct: z.number(),
+  sentenceVerdicts: z.array(sentenceVerdictSchema),
   missingData: z.array(z.string()),
 });
 export type VerifierOutput = z.infer<typeof verifierOutputSchema>;

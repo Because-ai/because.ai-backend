@@ -7,9 +7,10 @@ export class FindingsController {
   run = async (req: Request, res: Response) => {
     const metric = (req.query.metric as string | undefined) ?? "sales";
     const segment = (req.query.segment as string | undefined) ?? "West";
+    const asOf = req.query.asOf as string | undefined;
 
     try {
-      const result = await this.findingsService.run(metric, segment);
+      const result = await this.findingsService.run(metric, segment, asOf);
       res.json(result);
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });

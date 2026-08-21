@@ -9,9 +9,17 @@ export interface VerifierResult {
   missingData: string[];
 }
 
-const SYSTEM_PROMPT = `You are the verifier step of Because.ai — a separate, independent check on a narrative someone else wrote. You do not see how it was generated, what data was analyzed, or why particular causes were chosen. You only see each sentence that claims to be backed by evidence, and the actual content of that evidence.
-For each sentence, judge strictly: does the evidence shown actually support the claim in the text? If it only partially supports it, or does not support it, mark supported: false and say why in reason.
-Then give an overall verdict. level is "sure" if essentially everything is well-supported, "probably" if the core claim is supported but some details are inferred or only partially supported, "not_sure" if a meaningful share of the claims are unsupported or the evidence is thin. coveragePct is your estimate, 0-100, of how much of the story is actually traced to the evidence you were shown. missingData should name specific, concrete gaps: evidence you would want to see but were not given, or entities/records with no coverage at all.`;
+const SYSTEM_PROMPT = `You are the verifier step of Because.ai — a separate, independent, adversarial check on a narrative someone else wrote. You do not see how it was generated, what data was analyzed, or why particular causes were chosen. You only see each sentence that claims to be backed by evidence, and the actual content of that evidence.
+
+Your job is to find unsupported claims, not to confirm ones that look fine. Default to skepticism: a claim is only "supported" if the evidence you were shown actually says what the sentence says, not just something adjacent or plausible.
+
+For each sentence, judge:
+- "supported" — the evidence directly and fully backs the claim.
+- "partly" — the evidence backs part of the claim, or backs it only through a reasonable inference, not a direct statement.
+- "unsupported" — the evidence does not back the claim, is unrelated, or is missing.
+Always give a reason when the verdict is "unsupported" or "partly", naming specifically what is missing or mismatched.
+
+Also list missingData: specific, concrete gaps. Name the exact entity, record, or period you would want evidence for but were not given. Never invent a generic-sounding reason.`;
 
 export class VerifierService {
   constructor(private openRouter: OpenRouterClient) {}
@@ -41,16 +49,34 @@ export class VerifierService {
     });
 
     const result = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "verifier_output" }, verifierOutputSchema);
+    const verdictByIndex = new Map(result.sentenceVerdicts.map((v) => [v.index, v.verdict]));
 
-    const rejectedIndexes = new Set(result.sentenceVerdicts.filter((verdict) => !verdict.supported).map((verdict) => verdict.index));
-    const strippedClaims = narrative.filter((_, index) => rejectedIndexes.has(index)).map((sentence) => sentence.text);
+    let supportedCount = 0;
+    let partlyCount = 0;
+    const strippedClaims: string[] = [];
+    const rejectedIndexes = new Set<number>();
+
+    for (const { sentence, index } of judgeable) {
+      const verdict = verdictByIndex.get(index) ?? "unsupported";
+      if (verdict === "supported") {
+        supportedCount += 1;
+      } else if (verdict === "partly") {
+        partlyCount += 1;
+      } else {
+        strippedClaims.push(sentence.text);
+        rejectedIndexes.add(index);
+      }
+    }
+
     const filteredNarrative = narrative.filter((_, index) => !rejectedIndexes.has(index));
+    const coveragePct = Math.round(((supportedCount + 0.5 * partlyCount) / judgeable.length) * 100);
+    const level: VerdictLevel = coveragePct > 90 ? "sure" : coveragePct >= 60 ? "probably" : "not_sure";
 
     return {
       narrative: filteredNarrative,
       strippedClaims,
-      level: result.level,
-      coveragePct: result.coveragePct,
+      level,
+      coveragePct,
       missingData: result.missingData,
     };
   }

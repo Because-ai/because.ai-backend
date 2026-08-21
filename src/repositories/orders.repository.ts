@@ -28,18 +28,26 @@ export interface MovingCustomerRow {
 export class OrdersRepository {
   constructor(private sql: Sql) {}
 
-  async monthlySeries(config: MetricConfig, segmentValue: string, months: number): Promise<MonthlyPoint[]> {
+  async monthlySeries(config: MetricConfig, segmentValue: string, months: number, asOfMonth?: string): Promise<MonthlyPoint[]> {
+    const params: (string | number)[] = [segmentValue, months];
+    let asOfClause = "";
+    if (asOfMonth) {
+      params.push(`${asOfMonth}-01`);
+      asOfClause = `and date_trunc('month', ${config.dateColumn}) <= $3::date`;
+    }
+
     const rows = await this.sql.unsafe<{ month: string; total: string }[]>(
       `
       select to_char(date_trunc('month', ${config.dateColumn}), 'YYYY-MM') as month,
              sum(${config.valueColumn}) as total
       from ${config.table}
       where ${config.segmentColumn} = $1
+        ${asOfClause}
       group by 1
       order by 1 desc
       limit $2
       `,
-      [segmentValue, months]
+      params
     );
 
     return rows.map((row) => ({ month: row.month, total: Number(row.total) })).reverse();
