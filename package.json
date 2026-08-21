@@ -1,0 +1,28 @@
+{
+  "name": "because.ai-backend",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch index.ts",
+    "start": "bun index.ts",
+    "migrate": "bun src/db/migrate.ts",
+    "load:superstore": "bun scripts/load-superstore.ts",
+    "seed:calendar": "bun scripts/seed-calendar.ts",
+    "seed:notes": "bun scripts/seed-synthetic-notes.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.6"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "csv-parse": "^7.0.2",
+    "express": "^5.2.1",
+    "openai": "^7.5.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
+  }
+}
