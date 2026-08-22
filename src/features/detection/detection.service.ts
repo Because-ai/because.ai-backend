@@ -47,7 +47,7 @@ function stdev(values: number[]): number {
 }
 
 function pctChange(from: number, to: number): number {
-  return from === 0 ? 0 : ((to - from) / from) * 100;
+  return from === 0 ? 0 : ((to - from) / Math.abs(from)) * 100;
 }
 
 export class DetectionService {

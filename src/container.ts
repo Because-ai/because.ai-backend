@@ -19,18 +19,24 @@ import { VerifierService } from "./features/verifier/verifier.service";
 import { VerifierController } from "./features/verifier/verifier.controller";
 import { FindingsService } from "./features/findings/findings.service";
 import { FindingsController } from "./features/findings/findings.controller";
+import { MetricsService } from "./features/metrics/metrics.service";
+import { MetricsController } from "./features/metrics/metrics.controller";
+import { SourcesService } from "./features/sources/sources.service";
+import { SourcesController } from "./features/sources/sources.controller";
+import { SourcesRepository } from "./repositories/sources.repository";
 
 const ordersRepository = new OrdersRepository(sql);
 const calendarRepository = new CalendarRepository(sql);
 const notesRepository = new NotesRepository(sql);
 const cachedFindingsRepository = new CachedFindingsRepository(sql);
+const sourcesRepository = new SourcesRepository(sql);
 
 const openRouterClient = new OpenRouterClient();
 const voyageClient = new VoyageClient();
 
 export const detectionService = new DetectionService(ordersRepository);
 const suppressionService = new SuppressionService(calendarRepository);
-const attributionService = new AttributionService(ordersRepository);
+export const attributionService = new AttributionService(ordersRepository);
 const retrievalService = new RetrievalService(notesRepository, voyageClient);
 const narrativeService = new NarrativeService(openRouterClient);
 const verifierService = new VerifierService(openRouterClient);
@@ -45,6 +51,11 @@ export const findingsService = new FindingsService(
   cachedFindingsRepository
 );
 
+const metricsService = new MetricsService();
+const sourcesService = new SourcesService(sourcesRepository);
+
+export const metricsController = new MetricsController(metricsService);
+export const sourcesController = new SourcesController(sourcesService);
 export const detectionController = new DetectionController(detectionService);
 export const suppressionController = new SuppressionController(suppressionService);
 export const attributionController = new AttributionController(attributionService);

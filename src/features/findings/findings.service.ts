@@ -83,10 +83,11 @@ export class FindingsService {
       isSignificant: detectionResult.isSignificant,
     };
 
-    const trendEvidence = buildTrendEvidence(detectionResult);
+    const scopedId = (id: string) => `${baseInsight.id}:${id}`;
+    const trendEvidence = { ...buildTrendEvidence(detectionResult), id: scopedId(TREND_EVIDENCE_ID) };
 
     if (!detectionResult.isSignificant) {
-      const narrative: NarrativeSentence[] = [{ text: detectionResult.reason, evidenceIds: [TREND_EVIDENCE_ID] }];
+      const narrative: NarrativeSentence[] = [{ text: detectionResult.reason, evidenceIds: [trendEvidence.id] }];
       const { insight, evidenceMap } = this.buildSuppressedInsight(baseInsight, detectionResult.reason, narrative, [trendEvidence]);
       if (persist) {
         await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
@@ -96,11 +97,12 @@ export class FindingsService {
 
     const suppression = await this.suppression.check(segmentValue, currentStart, currentEnd);
     if (suppression) {
+      const calendarEvidence = { ...suppression.evidence, id: scopedId(suppression.evidence.id) };
       const narrative: NarrativeSentence[] = [
-        { text: detectionResult.reason, evidenceIds: [TREND_EVIDENCE_ID] },
-        { text: suppression.reason, evidenceIds: [suppression.evidence.id] },
+        { text: detectionResult.reason, evidenceIds: [trendEvidence.id] },
+        { text: suppression.reason, evidenceIds: [calendarEvidence.id] },
       ];
-      const { insight, evidenceMap } = this.buildSuppressedInsight(baseInsight, suppression.reason, narrative, [trendEvidence, suppression.evidence]);
+      const { insight, evidenceMap } = this.buildSuppressedInsight(baseInsight, suppression.reason, narrative, [trendEvidence, calendarEvidence]);
       if (persist) {
         await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
       }
@@ -119,7 +121,18 @@ export class FindingsService {
 
     const retrievalQuery = attributionResult.causes.map((cause) => cause.claim).join(". ") || `${metric.label} change in ${segmentValue}`;
     const noteEvidence = await this.retrieval.run(retrievalQuery, attributionResult.entityRefs);
-    const allEvidence = [buildTrendEvidence(detectionResult), ...attributionResult.evidence, ...noteEvidence];
+
+    const attributionQueryIds = new Set(attributionResult.evidence.filter((item) => item.type === "query").map((item) => item.id));
+    const allEvidence = [
+      trendEvidence,
+      ...attributionResult.evidence.map((item) => (item.type === "query" ? { ...item, id: scopedId(item.id) } : item)),
+      ...noteEvidence,
+    ];
+    const causes = attributionResult.causes.map((cause) => ({
+      ...cause,
+      evidence: cause.evidence.map((id) => (attributionQueryIds.has(id) ? scopedId(id) : id)),
+    }));
+
     const evidenceMap: EvidenceMap = Object.fromEntries(allEvidence.map((item) => [item.id, item]));
 
     const generation = await this.narrative.generate({
@@ -128,7 +141,7 @@ export class FindingsService {
       period,
       changePct: detectionResult.changePct,
       unit: metric.unit,
-      causes: attributionResult.causes,
+      causes,
       evidence: allEvidence,
     });
 
@@ -140,7 +153,7 @@ export class FindingsService {
       suppressedReason: null,
       headline: generation.headline,
       narrative: verifierResult.narrative,
-      causes: attributionResult.causes,
+      causes,
       actions: generation.actions,
       verdict: {
         level: verifierResult.level,

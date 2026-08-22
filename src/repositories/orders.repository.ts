@@ -10,6 +10,8 @@ export interface CategoryBreakdownRow {
   category: string;
   currentTotal: number;
   priorTotal: number;
+  currentCount: number;
+  priorCount: number;
 }
 
 export interface DiscountStats {
@@ -77,19 +79,25 @@ limit ${months};`;
 
     const query = `select category,
        coalesce(${agg} filter (where order_date >= '${currentStart}' and order_date < '${currentEnd}'), 0) as current_total,
-       coalesce(${agg} filter (where order_date >= '${priorStart}' and order_date < '${priorEnd}'), 0) as prior_total
+       coalesce(${agg} filter (where order_date >= '${priorStart}' and order_date < '${priorEnd}'), 0) as prior_total,
+       count(*) filter (where order_date >= '${currentStart}' and order_date < '${currentEnd}') as current_count,
+       count(*) filter (where order_date >= '${priorStart}' and order_date < '${priorEnd}') as prior_count
 from orders
 where region = '${segmentValue}'
   and order_date >= '${priorStart}'
   and order_date < '${currentEnd}'
 group by category;`;
 
-    const rows = await this.sql.unsafe<{ category: string; current_total: string; prior_total: string }[]>(
+    const rows = await this.sql.unsafe<
+      { category: string; current_total: string; prior_total: string; current_count: string; prior_count: string }[]
+    >(
       `
       select
         category,
         coalesce(${agg} filter (where order_date >= $2 and order_date < $3), 0) as current_total,
-        coalesce(${agg} filter (where order_date >= $4 and order_date < $5), 0) as prior_total
+        coalesce(${agg} filter (where order_date >= $4 and order_date < $5), 0) as prior_total,
+        count(*) filter (where order_date >= $2 and order_date < $3) as current_count,
+        count(*) filter (where order_date >= $4 and order_date < $5) as prior_count
       from orders
       where region = $1
         and order_date >= $4
@@ -104,6 +112,8 @@ group by category;`;
         category: row.category,
         currentTotal: Number(row.current_total),
         priorTotal: Number(row.prior_total),
+        currentCount: Number(row.current_count),
+        priorCount: Number(row.prior_count),
       })),
       query,
     };

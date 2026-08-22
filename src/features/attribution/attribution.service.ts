@@ -50,9 +50,20 @@ export class AttributionService {
       priorEnd
     );
 
-    const categoryDeltas = categoryRows
-      .map((row) => ({ ...row, delta: row.currentTotal - row.priorTotal }))
-      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    const currentCountTotal = categoryRows.reduce((acc, row) => acc + row.currentCount, 0) || 1;
+    const priorCountTotal = categoryRows.reduce((acc, row) => acc + row.priorCount, 0) || 1;
+
+    const withContribution = categoryRows.map((row) => {
+      const ownDelta = row.currentTotal - row.priorTotal;
+      const contribution =
+        metric.aggregate === "avg"
+          ? (row.currentCount / currentCountTotal) * row.currentTotal - (row.priorCount / priorCountTotal) * row.priorTotal
+          : ownDelta;
+      return { ...row, ownDelta, contribution };
+    });
+
+    const categoryDeltas = [...withContribution]
+      .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
       .slice(0, TOP_CATEGORY_COUNT);
 
     const causes: Cause[] = [];
@@ -78,10 +89,10 @@ export class AttributionService {
       });
 
       for (const row of categoryDeltas) {
-        const contributionPct = priorValue === 0 ? 0 : (row.delta / priorValue) * 100;
+        const contributionPct = priorValue === 0 ? 0 : (row.contribution / Math.abs(priorValue)) * 100;
         causes.push({
           id: `c-category-${row.category.toLowerCase().replace(/\s+/g, "-")}`,
-          claim: `${metric.label} in ${row.category} ${row.delta < 0 ? "fell" : "rose"} ${formatValue(metric, Math.abs(row.delta))} in ${segmentValue}`,
+          claim: `${metric.label} in ${row.category} ${row.ownDelta < 0 ? "fell" : "rose"} ${formatValue(metric, Math.abs(row.ownDelta))} in ${segmentValue}`,
           contributionPct,
           evidence: [categoryEvidenceId],
         });
@@ -97,7 +108,7 @@ export class AttributionService {
       if (Math.abs(discountShift) >= DISCOUNT_SHIFT_THRESHOLD) {
         const discountEvidenceId = "q-discount-stats";
         const estimatedImpact = discountShift * discountStats.currentTotal;
-        const contributionPct = priorValue === 0 ? 0 : (-estimatedImpact / priorValue) * 100;
+        const contributionPct = priorValue === 0 ? 0 : (-estimatedImpact / Math.abs(priorValue)) * 100;
 
         evidence.push({
           id: discountEvidenceId,
