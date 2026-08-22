@@ -10,6 +10,7 @@
     "load:superstore": "bun scripts/load-superstore.ts",
     "seed:calendar": "bun scripts/seed-calendar.ts",
     "seed:notes": "bun scripts/seed-synthetic-notes.ts",
+    "populate:demo": "bun scripts/populate-demo.ts --scan",
     "eval": "bun scripts/eval-pipeline.ts",
     "eval:full": "bun scripts/eval-pipeline.ts --full"
   },

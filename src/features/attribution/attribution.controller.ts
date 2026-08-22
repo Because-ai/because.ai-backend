@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { getMetricConfig } from "../../config/metrics";
 import type { AttributionService } from "./attribution.service";
 
 export class AttributionController {
@@ -6,6 +7,7 @@ export class AttributionController {
 
   run = async (req: Request, res: Response) => {
     const { segment, currentStart, currentEnd, priorStart, priorEnd, priorValue } = req.query;
+    const metricKey = (req.query.metric as string | undefined) ?? "sales";
 
     if (!segment || !currentStart || !currentEnd || !priorStart || !priorEnd || !priorValue) {
       res.status(400).json({ error: "segment, currentStart, currentEnd, priorStart, priorEnd, priorValue query params are required" });
@@ -14,6 +16,7 @@ export class AttributionController {
 
     try {
       const result = await this.attributionService.run({
+        metric: getMetricConfig(metricKey),
         segmentValue: String(segment),
         priorValue: Number(priorValue),
         currentStart: String(currentStart),

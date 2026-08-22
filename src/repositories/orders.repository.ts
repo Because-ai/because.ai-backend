@@ -28,7 +28,7 @@ export interface MovingCustomerRow {
 export class OrdersRepository {
   constructor(private sql: Sql) {}
 
-  async monthlySeries(config: MetricConfig, segmentValue: string, months: number, asOfMonth?: string): Promise<MonthlyPoint[]> {
+  async monthlySeries(config: MetricConfig, segmentValue: string, months: number, asOfMonth?: string): Promise<{ points: MonthlyPoint[]; query: string }> {
     const params: (string | number)[] = [segmentValue, months];
     let asOfClause = "";
     if (asOfMonth) {
@@ -36,10 +36,21 @@ export class OrdersRepository {
       asOfClause = `and date_trunc('month', ${config.dateColumn}) <= $3::date`;
     }
 
+    const aggregation = `${config.aggregate}(${config.valueColumn})`;
+
+    const query = `select to_char(date_trunc('month', ${config.dateColumn}), 'YYYY-MM') as month,
+       ${aggregation} as total
+from ${config.table}
+where ${config.segmentColumn} = '${segmentValue}'
+  ${asOfClause ? `and date_trunc('month', ${config.dateColumn}) <= '${asOfMonth}-01'::date` : ""}
+group by 1
+order by 1 desc
+limit ${months};`;
+
     const rows = await this.sql.unsafe<{ month: string; total: string }[]>(
       `
       select to_char(date_trunc('month', ${config.dateColumn}), 'YYYY-MM') as month,
-             sum(${config.valueColumn}) as total
+             ${aggregation} as total
       from ${config.table}
       where ${config.segmentColumn} = $1
         ${asOfClause}
@@ -50,33 +61,52 @@ export class OrdersRepository {
       params
     );
 
-    return rows.map((row) => ({ month: row.month, total: Number(row.total) })).reverse();
+    const points = rows.map((row) => ({ month: row.month, total: Number(row.total) })).reverse();
+    return { points, query };
   }
 
   async categoryBreakdown(
+    config: MetricConfig,
     segmentValue: string,
     currentStart: string,
     currentEnd: string,
     priorStart: string,
     priorEnd: string
-  ): Promise<CategoryBreakdownRow[]> {
-    const rows = await this.sql<{ category: string; current_total: string; prior_total: string }[]>`
+  ): Promise<{ rows: CategoryBreakdownRow[]; query: string }> {
+    const agg = `${config.aggregate}(${config.valueColumn})`;
+
+    const query = `select category,
+       coalesce(${agg} filter (where order_date >= '${currentStart}' and order_date < '${currentEnd}'), 0) as current_total,
+       coalesce(${agg} filter (where order_date >= '${priorStart}' and order_date < '${priorEnd}'), 0) as prior_total
+from orders
+where region = '${segmentValue}'
+  and order_date >= '${priorStart}'
+  and order_date < '${currentEnd}'
+group by category;`;
+
+    const rows = await this.sql.unsafe<{ category: string; current_total: string; prior_total: string }[]>(
+      `
       select
         category,
-        coalesce(sum(sales) filter (where order_date >= ${currentStart} and order_date < ${currentEnd}), 0) as current_total,
-        coalesce(sum(sales) filter (where order_date >= ${priorStart} and order_date < ${priorEnd}), 0) as prior_total
+        coalesce(${agg} filter (where order_date >= $2 and order_date < $3), 0) as current_total,
+        coalesce(${agg} filter (where order_date >= $4 and order_date < $5), 0) as prior_total
       from orders
-      where region = ${segmentValue}
-        and order_date >= ${priorStart}
-        and order_date < ${currentEnd}
+      where region = $1
+        and order_date >= $4
+        and order_date < $3
       group by category
-    `;
+      `,
+      [segmentValue, currentStart, currentEnd, priorStart, priorEnd]
+    );
 
-    return rows.map((row) => ({
-      category: row.category,
-      currentTotal: Number(row.current_total),
-      priorTotal: Number(row.prior_total),
-    }));
+    return {
+      rows: rows.map((row) => ({
+        category: row.category,
+        currentTotal: Number(row.current_total),
+        priorTotal: Number(row.prior_total),
+      })),
+      query,
+    };
   }
 
   async discountStats(
@@ -107,6 +137,7 @@ export class OrdersRepository {
   }
 
   async topMovingCustomers(
+    config: MetricConfig,
     segmentValue: string,
     currentStart: string,
     currentEnd: string,
@@ -114,20 +145,25 @@ export class OrdersRepository {
     priorEnd: string,
     limit: number
   ): Promise<MovingCustomerRow[]> {
-    const rows = await this.sql<{ customer_id: string; customer_name: string; delta: string }[]>`
+    const agg = `${config.aggregate}(${config.valueColumn})`;
+
+    const rows = await this.sql.unsafe<{ customer_id: string; customer_name: string; delta: string }[]>(
+      `
       select
         customer_id,
         max(customer_name) as customer_name,
-        coalesce(sum(sales) filter (where order_date >= ${currentStart} and order_date < ${currentEnd}), 0)
-          - coalesce(sum(sales) filter (where order_date >= ${priorStart} and order_date < ${priorEnd}), 0) as delta
+        coalesce(${agg} filter (where order_date >= $2 and order_date < $3), 0)
+          - coalesce(${agg} filter (where order_date >= $4 and order_date < $5), 0) as delta
       from orders
-      where region = ${segmentValue}
-        and order_date >= ${priorStart}
-        and order_date < ${currentEnd}
+      where region = $1
+        and order_date >= $4
+        and order_date < $3
       group by customer_id
       order by delta asc
-      limit ${limit}
-    `;
+      limit $6
+      `,
+      [segmentValue, currentStart, currentEnd, priorStart, priorEnd, limit]
+    );
 
     return rows.map((row) => ({
       customerId: row.customer_id,

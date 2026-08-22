@@ -13,6 +13,8 @@ const SYSTEM_PROMPT = `You are the verifier step of Because.ai — a separate, i
 
 Your job is to find unsupported claims, not to confirm ones that look fine. Default to skepticism: a claim is only "supported" if the evidence you were shown actually says what the sentence says, not just something adjacent or plausible.
 
+You will be given a JSON array of sentences, each with the evidence attached to it. Return exactly one entry in sentenceVerdicts per sentence, in the exact same order as the input array — the first entry in sentenceVerdicts is the verdict for the first sentence, and so on. Do not skip, merge, reorder, or add sentences.
+
 For each sentence, judge:
 - "supported" — the evidence directly and fully backs the claim.
 - "partly" — the evidence backs part of the claim, or backs it only through a reasonable inference, not a direct statement.
@@ -38,35 +40,43 @@ export class VerifierService {
     }
 
     const user = JSON.stringify({
-      sentences: judgeable.map(({ sentence, index }) => ({
-        index,
+      sentences: judgeable.map(({ sentence }) => ({
         text: sentence.text,
         evidence: sentence.evidenceIds.map((id) => {
           const item = evidenceMap[id];
-          return item ? { id: item.id, type: item.type, excerpt: item.excerpt } : { id, type: "missing", excerpt: "" };
+          return item ? { id: item.id, type: item.type, excerpt: item.excerpt, table: item.table } : { id, type: "missing", excerpt: "" };
         }),
       })),
     });
 
     const result = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "verifier_output" }, verifierOutputSchema);
-    const verdictByIndex = new Map(result.sentenceVerdicts.map((v) => [v.index, v.verdict]));
+
+    if (result.sentenceVerdicts.length !== judgeable.length) {
+      console.error(
+        `verifier returned ${result.sentenceVerdicts.length} verdicts for ${judgeable.length} sentences — extra sentences default to unsupported`
+      );
+    }
 
     let supportedCount = 0;
     let partlyCount = 0;
     const strippedClaims: string[] = [];
     const rejectedIndexes = new Set<number>();
 
-    for (const { sentence, index } of judgeable) {
-      const verdict = verdictByIndex.get(index) ?? "unsupported";
+    judgeable.forEach(({ sentence, index }, i) => {
+      const verdict = result.sentenceVerdicts[i]?.verdict ?? "unsupported";
+      const reason = result.sentenceVerdicts[i]?.reason;
+
       if (verdict === "supported") {
         supportedCount += 1;
       } else if (verdict === "partly") {
         partlyCount += 1;
+        console.log(`  [verifier] partly: "${sentence.text}" — ${reason ?? "no reason given"}`);
       } else {
         strippedClaims.push(sentence.text);
         rejectedIndexes.add(index);
+        console.log(`  [verifier] unsupported: "${sentence.text}" — ${reason ?? "no reason given"}`);
       }
-    }
+    });
 
     const filteredNarrative = narrative.filter((_, index) => !rejectedIndexes.has(index));
     const coveragePct = Math.round(((supportedCount + 0.5 * partlyCount) / judgeable.length) * 100);

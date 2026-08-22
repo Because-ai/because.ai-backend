@@ -89,7 +89,6 @@ export const narrativeGenerationSchema = z.object({
 export type NarrativeGeneration = z.infer<typeof narrativeGenerationSchema>;
 
 export const sentenceVerdictSchema = z.object({
-  index: z.number(),
   verdict: z.enum(["supported", "unsupported", "partly"]),
   reason: z.string().optional(),
 });

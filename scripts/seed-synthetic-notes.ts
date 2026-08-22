@@ -29,26 +29,32 @@ async function run() {
 
   console.log(`seeding notes for ${customers.length} West-region customers`);
 
-  for (let i = 0; i < customers.length; i++) {
-    const customer = customers[i]!;
-    const template = NOTE_TEMPLATES[i % NOTE_TEMPLATES.length]!;
-    const excerpt = template(customer.customer_name);
-    const type = TYPES[i % TYPES.length]!;
-    const id = `note-${customer.customer_id}-${randomUUID().slice(0, 8)}`;
+  const notes = customers.map((customer, i) => ({
+    customer,
+    type: TYPES[i % TYPES.length]!,
+    excerpt: NOTE_TEMPLATES[i % NOTE_TEMPLATES.length]!(customer.customer_name),
+    id: `note-${customer.customer_id}-${randomUUID().slice(0, 8)}`,
+  }));
 
-    const [embedding] = await voyage.embed([excerpt], "document");
-    const vectorLiteral = `[${embedding!.join(",")}]`;
+  const embeddings = await voyage.embed(
+    notes.map((note) => note.excerpt),
+    "document"
+  );
+
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i]!;
+    const vectorLiteral = `[${embeddings[i]!.join(",")}]`;
 
     await sql`
       insert into notes (id, type, source_id, entity_type, entity_ref, excerpt, meta, embedding)
       values (
-        ${id},
-        ${type},
+        ${note.id},
+        ${note.type},
         ${`CRM-${1000 + i}`},
         'customer',
-        ${customer.customer_id},
-        ${excerpt},
-        ${sql.json({ account: customer.customer_name, logged: new Date().toISOString().slice(0, 10) })},
+        ${note.customer.customer_id},
+        ${note.excerpt},
+        ${sql.json({ account: note.customer.customer_name, logged: new Date().toISOString().slice(0, 10) })},
         ${vectorLiteral}::vector
       )
       on conflict (id) do nothing

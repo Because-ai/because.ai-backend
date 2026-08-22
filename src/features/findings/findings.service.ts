@@ -1,10 +1,10 @@
 import type { MetricConfig } from "../../config/metrics";
 import { getMetricConfig } from "../../config/metrics";
 import { monthLabel, monthRange, previousMonth } from "../../lib/dates";
-import type { EvidenceMap, Insight, Severity, Trend } from "../../lib/contract";
+import type { Evidence, EvidenceMap, Insight, NarrativeSentence, Severity, Trend } from "../../lib/contract";
 import type { CachedFindingsRepository } from "../../repositories/cached-findings.repository";
 import type { AttributionService } from "../attribution/attribution.service";
-import type { DetectionService } from "../detection/detection.service";
+import { buildTrendEvidence, TREND_EVIDENCE_ID, type DetectionService } from "../detection/detection.service";
 import type { NarrativeService } from "../narrative/narrative.service";
 import type { RetrievalService } from "../retrieval/retrieval.service";
 import type { SuppressionService } from "../suppression/suppression.service";
@@ -27,9 +27,9 @@ export class FindingsService {
     private cachedFindings: CachedFindingsRepository
   ) {}
 
-  async run(metricKey: string, segmentValue: string, asOfMonth?: string): Promise<FindingsResult> {
+  async run(metricKey: string, segmentValue: string, asOfMonth?: string, persist = true): Promise<FindingsResult> {
     try {
-      const result = await this.runLive(metricKey, segmentValue, asOfMonth);
+      const result = await this.runLive(metricKey, segmentValue, asOfMonth, persist);
       return { ...result, source: "live" };
     } catch (err) {
       console.error("findings pipeline failed, falling back to cache", err);
@@ -41,7 +41,20 @@ export class FindingsService {
     }
   }
 
-  private async runLive(metricKey: string, segmentValue: string, asOfMonth?: string): Promise<{ insights: Insight[]; evidence: EvidenceMap }> {
+  async getLatest(metricKey: string, segmentValue: string): Promise<FindingsResult | null> {
+    const cached = await this.cachedFindings.getLatest(metricKey, segmentValue);
+    if (!cached) {
+      return null;
+    }
+    return { insights: cached.insights, evidence: cached.evidence, source: "cache" };
+  }
+
+  private async runLive(
+    metricKey: string,
+    segmentValue: string,
+    asOfMonth: string | undefined,
+    persist: boolean
+  ): Promise<{ insights: Insight[]; evidence: EvidenceMap }> {
     const metric = getMetricConfig(metricKey);
     const detectionResult = await this.detection.run(metric, segmentValue, asOfMonth);
 
@@ -70,24 +83,32 @@ export class FindingsService {
       isSignificant: detectionResult.isSignificant,
     };
 
+    const trendEvidence = buildTrendEvidence(detectionResult);
+
     if (!detectionResult.isSignificant) {
-      const insight = this.buildSuppressedInsight(baseInsight, detectionResult.reason);
-      if (!asOfMonth) {
-        await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: {} });
+      const narrative: NarrativeSentence[] = [{ text: detectionResult.reason, evidenceIds: [TREND_EVIDENCE_ID] }];
+      const { insight, evidenceMap } = this.buildSuppressedInsight(baseInsight, detectionResult.reason, narrative, [trendEvidence]);
+      if (persist) {
+        await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
       }
-      return { insights: [insight], evidence: {} };
+      return { insights: [insight], evidence: evidenceMap };
     }
 
-    const calendarReason = await this.suppression.check(segmentValue, currentStart, currentEnd);
-    if (calendarReason) {
-      const insight = this.buildSuppressedInsight(baseInsight, calendarReason);
-      if (!asOfMonth) {
-        await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: {} });
+    const suppression = await this.suppression.check(segmentValue, currentStart, currentEnd);
+    if (suppression) {
+      const narrative: NarrativeSentence[] = [
+        { text: detectionResult.reason, evidenceIds: [TREND_EVIDENCE_ID] },
+        { text: suppression.reason, evidenceIds: [suppression.evidence.id] },
+      ];
+      const { insight, evidenceMap } = this.buildSuppressedInsight(baseInsight, suppression.reason, narrative, [trendEvidence, suppression.evidence]);
+      if (persist) {
+        await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
       }
-      return { insights: [insight], evidence: {} };
+      return { insights: [insight], evidence: evidenceMap };
     }
 
     const attributionResult = await this.attribution.run({
+      metric,
       segmentValue,
       priorValue: detectionResult.priorValue,
       currentStart,
@@ -98,7 +119,7 @@ export class FindingsService {
 
     const retrievalQuery = attributionResult.causes.map((cause) => cause.claim).join(". ") || `${metric.label} change in ${segmentValue}`;
     const noteEvidence = await this.retrieval.run(retrievalQuery, attributionResult.entityRefs);
-    const allEvidence = [...attributionResult.evidence, ...noteEvidence];
+    const allEvidence = [buildTrendEvidence(detectionResult), ...attributionResult.evidence, ...noteEvidence];
     const evidenceMap: EvidenceMap = Object.fromEntries(allEvidence.map((item) => [item.id, item]));
 
     const generation = await this.narrative.generate({
@@ -129,24 +150,31 @@ export class FindingsService {
       },
     };
 
-    if (!asOfMonth) {
+    if (persist) {
       await this.cachedFindings.save(metricKey, segmentValue, period, { insights: [insight], evidence: evidenceMap });
     }
 
     return { insights: [insight], evidence: evidenceMap };
   }
 
-  private buildSuppressedInsight(base: Omit<Insight, "severity" | "suppressedReason" | "headline" | "narrative" | "causes" | "actions" | "verdict">, reason: string): Insight {
-    return {
+  private buildSuppressedInsight(
+    base: Omit<Insight, "severity" | "suppressedReason" | "headline" | "narrative" | "causes" | "actions" | "verdict">,
+    reason: string,
+    narrative: NarrativeSentence[],
+    evidence: Evidence[]
+  ): { insight: Insight; evidenceMap: EvidenceMap } {
+    const insight: Insight = {
       ...base,
       severity: "watch",
       suppressedReason: reason,
       headline: `${base.metric} moved ${base.changePct.toFixed(1)}% in ${base.segment}, but this is expected. No action suggested.`,
-      narrative: [],
+      narrative,
       causes: [],
       actions: [],
       verdict: { level: "sure", coveragePct: 100, strippedClaims: [], missingData: [] },
     };
+    const evidenceMap: EvidenceMap = Object.fromEntries(evidence.map((item) => [item.id, item]));
+    return { insight, evidenceMap };
   }
 
   private classifySeverity(metric: MetricConfig, changePct: number): Severity {

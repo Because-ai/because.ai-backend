@@ -28,14 +28,14 @@ const cachedFindingsRepository = new CachedFindingsRepository(sql);
 const openRouterClient = new OpenRouterClient();
 const voyageClient = new VoyageClient();
 
-const detectionService = new DetectionService(ordersRepository);
+export const detectionService = new DetectionService(ordersRepository);
 const suppressionService = new SuppressionService(calendarRepository);
 const attributionService = new AttributionService(ordersRepository);
 const retrievalService = new RetrievalService(notesRepository, voyageClient);
 const narrativeService = new NarrativeService(openRouterClient);
 const verifierService = new VerifierService(openRouterClient);
 
-const findingsService = new FindingsService(
+export const findingsService = new FindingsService(
   detectionService,
   suppressionService,
   attributionService,

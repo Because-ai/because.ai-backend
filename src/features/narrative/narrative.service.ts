@@ -1,4 +1,5 @@
-import { narrativeGenerationSchema, type Cause, type Evidence, type NarrativeGeneration } from "../../lib/contract";
+import { z } from "zod";
+import { actionSchema, type Cause, type Evidence, type NarrativeGeneration } from "../../lib/contract";
 import type { OpenRouterClient } from "../../lib/openrouter";
 
 export interface NarrativeInput {
@@ -16,11 +17,30 @@ You are given a metric change, a set of deterministically computed causes, and a
 
 Write a short headline, then a narrative of 5 to 8 sentences in this fixed order: what changed, where it changed, why it changed, why it matters, what to do next.
 
-Every sentence that states a factual claim MUST carry at least one evidence id in evidenceIds, drawn only from the evidence ids you were given — never invent an id, never cite an id you were not given. Only a purely connective or transitional sentence (one that adds no new factual claim on its own) may have an empty evidenceIds array; this should be rare, not the default.
+One evidence item with id "q-monthly-trend" is the query behind the overall metric change itself (the six-month series and its numbers) — cite it for the opening "what changed" sentence, since that is the evidence that actually proves the topline number.
+
+Every sentence that states a factual claim MUST carry at least one evidence id in evidenceIds. Only a purely connective or transitional sentence (one that adds no new factual claim on its own) may have an empty evidenceIds array; this should be rare, not the default. The schema only allows evidence ids that actually exist, so pick from what you were given.
 
 Only state what the causes and evidence actually support. Do not speculate about causes you were not given.
 
 Also write 1-3 recommended actions: concrete next steps a business leader could take, each with affectedEntities (who it involves) and a rationale grounded in the causes/evidence above.`;
+
+
+function buildNarrativeSchema(evidenceIds: string[]) {
+  const uniqueIds = [...new Set(evidenceIds)];
+  const idSchema = uniqueIds.length > 0 ? z.enum(uniqueIds as [string, ...string[]]) : z.string();
+
+  return z.object({
+    headline: z.string(),
+    narrative: z.array(
+      z.object({
+        text: z.string(),
+        evidenceIds: z.array(idSchema),
+      })
+    ),
+    actions: z.array(actionSchema),
+  });
+}
 
 export class NarrativeService {
   constructor(private openRouter: OpenRouterClient) {}
@@ -43,12 +63,12 @@ export class NarrativeService {
         type: item.type,
         sourceId: item.sourceId,
         excerpt: item.excerpt,
+        table: item.table,
       })),
     });
 
-    return this.openRouter.completeStructured(
-      { system: SYSTEM_PROMPT, user, schemaName: "narrative_generation" },
-      narrativeGenerationSchema
-    );
+    const schema = buildNarrativeSchema(input.evidence.map((item) => item.id));
+    const result = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "narrative_generation" }, schema);
+    return result as NarrativeGeneration;
   }
 }

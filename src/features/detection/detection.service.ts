@@ -1,10 +1,28 @@
 import type { MetricConfig } from "../../config/metrics";
+import type { Evidence } from "../../lib/contract";
 import type { OrdersRepository } from "../../repositories/orders.repository";
+
+export const TREND_EVIDENCE_ID = "q-monthly-trend";
+
+export function buildTrendEvidence(result: DetectionResult): Evidence {
+  return {
+    id: TREND_EVIDENCE_ID,
+    type: "query",
+    sourceId: `WAREHOUSE/${result.metric.table}`,
+    excerpt: result.seriesQuery,
+    meta: { region: result.segmentValue, metric: result.metric.label },
+    table: {
+      columns: ["month", result.metric.label],
+      rows: result.monthlySeries.map((point) => [point.month, point.total.toLocaleString("en-US", { maximumFractionDigits: 0 })]),
+    },
+  };
+}
 
 export interface DetectionResult {
   metric: MetricConfig;
   segmentValue: string;
   monthlySeries: { month: string; total: number }[];
+  seriesQuery: string;
   currentMonth: string;
   currentValue: number;
   priorValue: number;
@@ -36,7 +54,7 @@ export class DetectionService {
   constructor(private ordersRepository: OrdersRepository) {}
 
   async run(metric: MetricConfig, segmentValue: string, asOfMonth?: string): Promise<DetectionResult> {
-    const series = await this.ordersRepository.monthlySeries(metric, segmentValue, TRAILING_MONTHS + 1, asOfMonth);
+    const { points: series, query: seriesQuery } = await this.ordersRepository.monthlySeries(metric, segmentValue, TRAILING_MONTHS + 1, asOfMonth);
 
     if (series.length < 3) {
       throw new Error(`Not enough monthly data for ${metric.key} / ${segmentValue}`);
@@ -68,6 +86,7 @@ export class DetectionService {
       metric,
       segmentValue,
       monthlySeries: series,
+      seriesQuery,
       currentMonth: current.month,
       currentValue: current.total,
       priorValue: prior.total,

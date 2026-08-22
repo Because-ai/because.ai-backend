@@ -15,8 +15,8 @@ export class SuppressionController {
     }
 
     try {
-      const reason = await this.suppressionService.check(segment, start, end);
-      res.json({ suppressed: reason });
+      const result = await this.suppressionService.check(segment, start, end);
+      res.json({ suppressed: result });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
     }

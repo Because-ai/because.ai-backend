@@ -28,6 +28,7 @@ export class OpenRouterClient {
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await this.client.chat.completions.create({
         model: env.OPENROUTER_MODEL,
+        max_tokens: 4096,
         messages: [
           { role: "system", content: request.system },
           { role: "user", content: request.user },
@@ -48,7 +49,17 @@ export class OpenRouterClient {
         continue;
       }
 
-      const parsed = schema.safeParse(JSON.parse(content));
+      let raw: unknown;
+      try {
+        raw = JSON.parse(content);
+      } catch (err) {
+        lastError = new Error(
+          `OpenRouter response was not valid JSON, likely truncated (finish_reason: ${response.choices[0]?.finish_reason}): ${err instanceof Error ? err.message : String(err)}`
+        );
+        continue;
+      }
+
+      const parsed = schema.safeParse(raw);
       if (parsed.success) {
         return parsed.data;
       }

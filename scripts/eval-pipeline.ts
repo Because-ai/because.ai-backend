@@ -4,7 +4,7 @@ import { monthRange, previousMonth } from "../src/lib/dates";
 import { OpenRouterClient } from "../src/lib/openrouter";
 import { VoyageClient } from "../src/lib/voyage";
 import { AttributionService } from "../src/features/attribution/attribution.service";
-import { DetectionService } from "../src/features/detection/detection.service";
+import { buildTrendEvidence, DetectionService } from "../src/features/detection/detection.service";
 import { NarrativeService } from "../src/features/narrative/narrative.service";
 import { RetrievalService } from "../src/features/retrieval/retrieval.service";
 import { SuppressionService } from "../src/features/suppression/suppression.service";
@@ -75,15 +75,16 @@ async function run() {
       const priorMonthKey = previousMonth(detectionResult.currentMonth);
       const { start: priorStart, end: priorEnd } = monthRange(priorMonthKey);
 
-      const suppressedReason = await suppressionService.check(region, currentStart, currentEnd);
-      if (suppressedReason) {
+      const suppression = await suppressionService.check(region, currentStart, currentEnd);
+      if (suppression) {
         suppressedCount += 1;
-        console.log(`  ${region} / ${asOfMonth}: flagged, suppressed — ${suppressedReason}`);
+        console.log(`  ${region} / ${asOfMonth}: flagged, suppressed — ${suppression.reason}`);
         continue;
       }
 
       const attributionStart = performance.now();
       const attributionResult = await attributionService.run({
+        metric,
         segmentValue: region,
         priorValue: detectionResult.priorValue,
         currentStart,
@@ -102,7 +103,7 @@ async function run() {
       if (RUN_FULL) {
         const retrievalQuery = attributionResult.causes.map((cause) => cause.claim).join(". ") || `${metric.label} change in ${region}`;
         const noteEvidence = await retrievalService.run(retrievalQuery, attributionResult.entityRefs);
-        const allEvidence = [...attributionResult.evidence, ...noteEvidence];
+        const allEvidence = [buildTrendEvidence(detectionResult), ...attributionResult.evidence, ...noteEvidence];
         const evidenceMap = Object.fromEntries(allEvidence.map((item) => [item.id, item]));
 
         const generation = await narrativeService.generate({
