@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { describeError } from "../../lib/errors";
 import type { FindingsService } from "./findings.service";
 
 export class FindingsController {
@@ -13,7 +14,7 @@ export class FindingsController {
       const result = await this.findingsService.run(metric, segment, asOf);
       res.json(result);
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
+      res.status(500).json({ error: describeError(err) });
     }
   };
 
@@ -29,7 +30,7 @@ export class FindingsController {
       }
       res.json(result);
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
+      res.status(500).json({ error: describeError(err) });
     }
   };
 }

@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { describeError } from "../../lib/errors";
 import type { RetrievalService } from "./retrieval.service";
 
 export class RetrievalController {
@@ -17,7 +18,7 @@ export class RetrievalController {
       const evidence = await this.retrievalService.run(query, entityRefs);
       res.json({ evidence });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
+      res.status(500).json({ error: describeError(err) });
     }
   };
 }

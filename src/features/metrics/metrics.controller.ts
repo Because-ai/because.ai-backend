@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { describeError } from "../../lib/errors";
 import type { MetricsService } from "./metrics.service";
 
 export class MetricsController {
@@ -8,7 +9,7 @@ export class MetricsController {
     try {
       res.json({ metrics: this.metricsService.list() });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
+      res.status(500).json({ error: describeError(err) });
     }
   };
 }

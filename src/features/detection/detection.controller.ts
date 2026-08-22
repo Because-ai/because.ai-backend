@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { describeError } from "../../lib/errors";
 import { getMetricConfig } from "../../config/metrics";
 import type { DetectionService } from "./detection.service";
 
@@ -15,7 +16,7 @@ export class DetectionController {
       const result = await this.detectionService.run(metric, segment, asOf);
       res.json(result);
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
+      res.status(500).json({ error: describeError(err) });
     }
   };
 }

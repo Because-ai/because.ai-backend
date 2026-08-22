@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { describeError } from "../../lib/errors";
 import type { NarrativeInput, NarrativeService } from "./narrative.service";
 
 export class NarrativeController {
@@ -9,7 +10,7 @@ export class NarrativeController {
       const result = await this.narrativeService.generate(req.body as NarrativeInput);
       res.json(result);
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "unknown error" });
+      res.status(500).json({ error: describeError(err) });
     }
   };
 }
