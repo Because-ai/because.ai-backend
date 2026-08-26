@@ -87,9 +87,11 @@ export class AttributionService {
       }
     }
 
-    // Discount shift is a plausible secondary driver for revenue-style metrics, but it
-    // would be circular for the discount metric itself, so skip it there.
-    if (metric.valueColumn !== "discount") {
+    // The discount cause estimates impact as (discount shift x revenue), which is only
+    // dimensionally sound when the metric itself is money. Against units sold it divides
+    // dollars by units and produces a meaningless contribution in the thousands of points.
+    // It would also be circular for the discount metric itself.
+    if (metric.valueColumn === "sales" || metric.valueColumn === "profit") {
       const discountStats = await this.ordersRepository.discountStats(segmentValue, currentStart, currentEnd, priorStart, priorEnd);
       const discountShift = discountStats.currentAvgDiscount - discountStats.priorAvgDiscount;
 
