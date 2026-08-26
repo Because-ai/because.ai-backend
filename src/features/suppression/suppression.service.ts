@@ -1,6 +1,13 @@
 import type { Evidence } from "../../lib/contract";
 import type { CalendarRepository } from "../../repositories/calendar.repository";
 
+function formatWindow(startsOn: string, endsOn: string): string {
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" };
+  const start = new Date(`${startsOn}T00:00:00Z`).toLocaleDateString("en-GB", opts);
+  const end = new Date(`${endsOn}T00:00:00Z`).toLocaleDateString("en-GB", opts);
+  return `${start} to ${end}`;
+}
+
 export const CALENDAR_EVIDENCE_ID = "q-calendar-events";
 
 export interface SuppressionResult {
@@ -18,7 +25,7 @@ export class SuppressionService {
     }
 
     const event = events[0]!;
-    const reason = `Overlaps ${event.label} (${event.kind}), ${event.startsOn} to ${event.endsOn} — treated as expected, not flagged as an anomaly.`;
+    const reason = `Overlaps ${event.label}, a known ${event.kind} running ${formatWindow(event.startsOn, event.endsOn)} — expected, so not raised as a finding.`;
 
     const evidence: Evidence = {
       id: CALENDAR_EVIDENCE_ID,

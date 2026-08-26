@@ -1,5 +1,6 @@
 import type { MetricConfig } from "../../config/metrics";
 import type { Evidence } from "../../lib/contract";
+import { formatMetricValue } from "../../lib/metric-format";
 import type { OrdersRepository } from "../../repositories/orders.repository";
 
 export const TREND_EVIDENCE_ID = "q-monthly-trend";
@@ -13,7 +14,7 @@ export function buildTrendEvidence(result: DetectionResult): Evidence {
     meta: { region: result.segmentValue, metric: result.metric.label },
     table: {
       columns: ["month", result.metric.label],
-      rows: result.monthlySeries.map((point) => [point.month, point.total.toLocaleString("en-US", { maximumFractionDigits: 0 })]),
+      rows: result.monthlySeries.map((point) => [point.month, formatMetricValue(result.metric, point.total)]),
     },
   };
 }

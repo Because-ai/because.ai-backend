@@ -1,5 +1,6 @@
 import type { MetricConfig } from "../../config/metrics";
 import type { Cause, Evidence } from "../../lib/contract";
+import { formatMetricValue } from "../../lib/metric-format";
 import type { OrdersRepository } from "../../repositories/orders.repository";
 
 export interface AttributionInput {
@@ -18,22 +19,9 @@ export interface AttributionResult {
   entityRefs: string[];
 }
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const plain = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
-
 const DISCOUNT_SHIFT_THRESHOLD = 0.02;
 const TOP_CATEGORY_COUNT = 2;
 const TOP_CUSTOMER_COUNT = 5;
-
-function formatValue(metric: MetricConfig, value: number): string {
-  if (metric.valueColumn === "discount") {
-    return `${(value * 100).toFixed(1)}%`;
-  }
-  if (metric.valueColumn === "sales" || metric.valueColumn === "profit") {
-    return money.format(value);
-  }
-  return `${plain.format(value)} ${metric.unit}`;
-}
 
 export class AttributionService {
   constructor(private ordersRepository: OrdersRepository) {}
@@ -81,9 +69,9 @@ export class AttributionService {
           columns: ["category", "current", "prior", "delta"],
           rows: categoryRows.map((row) => [
             row.category,
-            formatValue(metric, row.currentTotal),
-            formatValue(metric, row.priorTotal),
-            formatValue(metric, row.currentTotal - row.priorTotal),
+            formatMetricValue(metric, row.currentTotal),
+            formatMetricValue(metric, row.priorTotal),
+            formatMetricValue(metric, row.currentTotal - row.priorTotal),
           ]),
         },
       });
@@ -92,7 +80,7 @@ export class AttributionService {
         const contributionPct = priorValue === 0 ? 0 : (row.contribution / Math.abs(priorValue)) * 100;
         causes.push({
           id: `c-category-${row.category.toLowerCase().replace(/\s+/g, "-")}`,
-          claim: `${metric.label} in ${row.category} ${row.ownDelta < 0 ? "fell" : "rose"} ${formatValue(metric, Math.abs(row.ownDelta))} in ${segmentValue}`,
+          claim: `${metric.label} in ${row.category} ${row.ownDelta < 0 ? "fell" : "rose"} ${formatMetricValue(metric, Math.abs(row.ownDelta))} in ${segmentValue}`,
           contributionPct,
           evidence: [categoryEvidenceId],
         });
