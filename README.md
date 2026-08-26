@@ -2,7 +2,7 @@
 
 An automated explanation engine for business metrics.
 
-Accenture Innovation Challenge 2026 — Round 2 — problem statement 3, BusinessIntelligence.ai.
+Accenture Innovation Challenge 2026, Round 2, problem statement 3, BusinessIntelligence.ai.
 
 Team Status 200: Mrinal Satyarthi, Aman Khakre, Himanshu Verma. IIT Patna, 2028.
 
@@ -22,7 +22,7 @@ The brief asked for a KPI storytelling engine that explains what changed in a bu
 
 All five run. None are stubs.
 
-### 01 — Learns the business
+### 01. Learns the business
 
 Metrics are declarative config, not hand-written queries:
 
@@ -40,11 +40,11 @@ sales: {
 }
 ```
 
-The pipeline reads this to know how to aggregate the metric, how to slice it, and which direction is healthy. `goodDirection` is why a rising discount renders as a problem and rising profit does not — the sign of the change and the judgement about the change are separate things.
+The pipeline reads this to know how to aggregate the metric, how to slice it, and which direction is healthy. `goodDirection` is why a rising discount renders as a problem and rising profit does not. The sign of the change and the judgement about the change are separate things.
 
 Adding a metric is adding a config entry. It does not mean editing pipeline code.
 
-### 02 — Checks it is real
+### 02. Checks it is real
 
 Two gates, both deterministic.
 
@@ -54,13 +54,13 @@ First, a significance band. We take the trailing six month-over-month percentage
 
 Second, a calendar check. If the flagged period overlaps a known event, the finding is suppressed with the reason stated:
 
-> Overlaps Black Friday / Cyber Monday, a known promo running 20 Nov 2017 to 2 Dec 2017 — expected, so not raised as a finding.
+> Overlaps Black Friday / Cyber Monday, a known promo running 20 Nov 2017 to 2 Dec 2017. Expected, so not raised as a finding.
 
 A suppressed finding still appears in the interface, greyed out, with its reason. Hiding it entirely would mean the reader could not tell the difference between "nothing happened" and "nothing was checked".
 
-Percentage change divides by the **absolute** prior value. A metric like profit crosses zero, and `(current - prior) / prior` flips sign whenever `prior` is negative — a month that went from a $563 loss to a $10,760 profit reads as −2009% and gets classified as a critical decline while the chart shows it spiking upward.
+Percentage change divides by the **absolute** prior value. A metric like profit crosses zero, and `(current - prior) / prior` flips sign whenever `prior` is negative. A month that went from a $563 loss to a $10,760 profit reads as -2009% and gets classified as a critical decline while the chart shows it spiking upward.
 
-### 03 — Finds the cause
+### 03. Finds the cause
 
 Deterministic SQL. No model call.
 
@@ -70,11 +70,11 @@ Deterministic SQL. No model call.
 
 The IDs are the handoff to step 04's retrieval: notes are filtered to those customers *before* the vector search, not after. Searching all notes and hoping the right ones surface is how you end up citing a note about an unrelated region, which is exactly the failure that destroys credibility the moment a judge clicks through.
 
-Each query is captured as evidence — the literal SQL and the rows it returned — so a claim built on it can be opened and checked.
+Each query is captured as evidence, both the literal SQL and the rows it returned, so a claim built on it can be opened and checked.
 
 Runtime is under 25ms.
 
-### 04 — Writes the answer
+### 04. Writes the answer
 
 One model call. It receives the computed statistics, the causes, and the evidence, and returns structured sentences, each carrying the IDs of the evidence supporting it.
 
@@ -86,7 +86,7 @@ const idSchema = z.enum(uniqueIds as [string, ...string[]]);
 
 An invented ID fails schema validation and the call is retried. "Please cite your sources" gets ignored under load; a schema that will not accept an unknown ID cannot be.
 
-### 05 — Checks its own work
+### 05. Checks its own work
 
 A second model call, and the isolation is the entire mechanism.
 
@@ -105,7 +105,7 @@ coverage = (supported + 0.5 × partly) / judgeable
 
 A model asked to score its own output will tend to score it well. Taking the arithmetic away from it is the difference between a system that reports confidence and one that measures it.
 
-This step earned its place during development. It caught a real bug we had not planted: our trend evidence formatted values with `maximumFractionDigits: 0`, so average discount — stored as a fraction — rendered as a column of zeros. The verifier read `0 → 0`, correctly concluded no increase had occurred, and stripped claims that were true. It was right about the evidence and wrong about reality, because the evidence was broken. We found the formatting bug by reading its objections.
+This step earned its place during development. It caught a real bug we had not planted: our trend evidence formatted values with `maximumFractionDigits: 0`, so average discount, which is stored as a fraction, rendered as a column of zeros. The verifier read `0 → 0`, correctly concluded no increase had occurred, and stripped claims that were true. It was right about the evidence and wrong about reality, because the evidence was broken. We found the formatting bug by reading its objections.
 
 ---
 
@@ -117,13 +117,13 @@ flowchart TD
         PG[("Postgres 17 + pgvector<br/>orders · notes<br/>calendar_events · cached_findings")]
     end
 
-    subgraph pipeline["Pipeline — backend"]
+    subgraph pipeline["Pipeline (backend)"]
         D["01 Detection<br/><i>significance band</i>"]
         S["02 Suppression<br/><i>calendar check</i>"]
         A["03 Attribution<br/><i>SQL drill-down · &lt;25ms</i>"]
         R["04a Retrieval<br/><i>entity-filtered vector search</i>"]
         N["04b Narrative<br/><i>model call 1</i>"]
-        V["05 Verifier<br/><i>model call 2 — isolated</i>"]
+        V["05 Verifier<br/><i>model call 2, isolated</i>"]
     end
 
     subgraph external["External services"]
@@ -131,7 +131,7 @@ flowchart TD
         OR["OpenRouter<br/>gemini-2.5-flash-lite"]
     end
 
-    UI["Frontend — Next.js 16<br/>findings · detail · metrics · sources"]
+    UI["Frontend (Next.js 16)<br/>findings · detail · metrics · sources"]
 
     PG --> D
     D -->|"not significant"| QUIET["Quiet finding<br/><i>reason stated</i>"]
@@ -149,8 +149,8 @@ flowchart TD
     V --> CACHE[("cached_findings")]
     QUIET --> CACHE
     CACHE --> UI
-    UI -->|"GET /latest — free"| CACHE
-    UI -->|"POST /run — 2 model calls"| D
+    UI -->|"GET /latest, free"| CACHE
+    UI -->|"POST /run, 2 model calls"| D
 ```
 
 The verifier receives only the narrative and the evidence. That edge is deliberately the narrowest one in the diagram.
@@ -173,9 +173,9 @@ Everything downstream of those connectors is running live, against whatever the 
 - the significance test
 - the calendar suppression check
 - the attribution drill-down
-- vector retrieval — real cosine search over a real HNSW index, real embeddings
-- narrative generation — a real model call
-- the verifier — a second real model call
+- vector retrieval: real cosine search over a real HNSW index, real embeddings
+- narrative generation: a real model call
+- the verifier: a second real model call
 
 The notes are synthetic, but they are retrieved for real by vector search and displayed verbatim. Nothing shown in the evidence drawer is paraphrased or generated at display time.
 
@@ -200,7 +200,7 @@ docker run --name postgres \
   -d pgvector/pgvector:pg17
 ```
 
-The `pgvector` image is required — the stock `postgres` image has no `vector` extension and migration 003 will fail. Pin to `pg17`; Postgres 18 changed its data directory layout and will not start against a volume initialised by an earlier version.
+The `pgvector` image is required. The stock `postgres` image has no `vector` extension and migration 003 will fail. Pin to `pg17`; Postgres 18 changed its data directory layout and will not start against a volume initialised by an earlier version.
 
 ### 2. Environment
 
@@ -252,7 +252,7 @@ bun run dev                # frontend on :3000
 bun run populate:demo      # all 16 metric × region combinations
 ```
 
-Detection is deterministic and free, so `populate:demo` sweeps every candidate month per combination to find where the metric actually moved, then spends model calls only on that month. Without the scan, running against the true latest period returns a quiet card for almost everything — the dataset's final month is unremarkable in most regions.
+Detection is deterministic and free, so `populate:demo` sweeps every candidate month per combination to find where the metric actually moved, then spends model calls only on that month. Without the scan, running against the true latest period returns a quiet card for almost everything. The dataset's final month is unremarkable in most regions.
 
 ---
 
@@ -263,7 +263,7 @@ Detection is deterministic and free, so `populate:demo` sweeps every candidate m
 | Method | Endpoint | Cost |
 |---|---|---|
 | `POST` | `/api/findings/run?metric=sales&segment=West&asOf=2017-10` | 2 model calls + 1 embedding call |
-| `GET` | `/api/findings/latest?metric=sales&segment=West` | free — serves cache, 404 if never run |
+| `GET` | `/api/findings/latest?metric=sales&segment=West` | free, serves cache, 404 if never run |
 
 `asOf` pins the analysis to a historical month. Any pipeline failure falls back to the last good cached response and marks it `source: "cache"` rather than erroring.
 
@@ -307,7 +307,7 @@ One full run across every metric and segment.
 | Verdicts | 1 sure, 11 probably, 2 not sure |
 | Attribution runtime | under 25ms, no model call |
 
-The two `not_sure` findings — `discount · West` and `sales · East`, both at 40% coverage — are the ones we would point a judge at first. A system that always returns "sure" is not measuring anything, and the coverage figure is only meaningful if it is sometimes low.
+The two `not_sure` findings are `discount · West` and `sales · East`, both at 40% coverage. They are the ones we would point a judge at first. A system that always returns "sure" is not measuring anything, and the coverage figure is only meaningful if it is sometimes low.
 
 Reproduce with `bun run populate:demo`, or `bun run eval:full` for a per-combination breakdown with verifier reasoning logged.
 
@@ -323,11 +323,11 @@ Stated plainly, because they are real.
 
 **Percentage change on an averaged metric is ambiguous.** For average discount, "rose 212%" and "rose 15.7 percentage points" are both true and mean different things. Our verifier flagged this on its own during evaluation. The narrative should say percentage points for `avg`-aggregated metrics; it currently does not.
 
-**The notes are synthetic.** They are retrieved for real and displayed verbatim, but we wrote them. Retrieval quality against genuine CRM text — inconsistent, abbreviated, contradictory — is untested.
+**The notes are synthetic.** They are retrieved for real and displayed verbatim, but we wrote them. Retrieval quality against genuine CRM text, which is inconsistent, abbreviated and contradictory, is untested.
 
 **One dataset, one shape of business.** Retail transactions with region, category and customer dimensions. We have not tested against subscription, manufacturing, or any schema where the interesting dimensions are not already columns.
 
-**Vector retrieval depends on attribution being right.** Notes are filtered to the customers attribution surfaced. If attribution picks the wrong customers, retrieval faithfully returns notes about them, and the verifier will not catch it — the evidence genuinely does support the sentence; it is just the wrong evidence to have gone looking for.
+**Vector retrieval depends on attribution being right.** Notes are filtered to the customers attribution surfaced. If attribution picks the wrong customers, retrieval faithfully returns notes about them, and the verifier will not catch it. The evidence genuinely does support the sentence; it is just the wrong evidence to have gone looking for.
 
 **Rate limits shape the runtime.** Voyage's free tier is 3 requests per minute. There is retry with backoff, and a full 16-combination populate spends time waiting on it.
 
@@ -340,12 +340,12 @@ src/
   config/          metric definitions, environment validation
   db/              migrations, client, migration runner
   features/
-    detection/     01 — significance band
-    suppression/   02 — calendar check
-    attribution/   03 — SQL drill-down
-    retrieval/     04a — entity-filtered vector search
-    narrative/     04b — model call 1
-    verifier/      05 — model call 2, isolated
+    detection/     01. significance band
+    suppression/   02. calendar check
+    attribution/   03. SQL drill-down
+    retrieval/     04a. entity-filtered vector search
+    narrative/     04b. model call 1
+    verifier/      05. model call 2, isolated
     findings/      orchestration, cache, fallback
     metrics/       config as an endpoint
     sources/       connector inventory
