@@ -17,11 +17,12 @@ export class SourcesService {
   constructor(private sourcesRepository: SourcesRepository) {}
 
   async list(): Promise<SourceConnector[]> {
-    const [orders, calendarCount, notes, findingsCount] = await Promise.all([
+    const [orders, calendarCount, notes, findingsCount, marketing] = await Promise.all([
       this.sourcesRepository.ordersStats(),
       this.sourcesRepository.calendarCount(),
       this.sourcesRepository.notesStats(),
       this.sourcesRepository.findingsCount(),
+      this.sourcesRepository.marketingStats(),
     ]);
 
     const noteBreakdown = notes.byType.map((row) => `${row.count} ${row.type}${row.count === 1 ? "" : "s"}`).join(", ");
@@ -53,6 +54,21 @@ export class SourcesService {
         status: notes.rowCount > 0 ? "connected" : "empty",
         rowCount: notes.rowCount,
         detail: notes.rowCount > 0 ? `${noteBreakdown} · embedded for vector retrieval` : "No notes seeded",
+      },
+      {
+        id: "marketing",
+        name: "Marketing spend",
+        kind: "warehouse",
+        productionSystem: "Google Ads / Meta Ads",
+        prototypeSystem: "Postgres (generated daily spend)",
+        isSimulated: true,
+        table: "marketing_spend",
+        status: marketing.rowCount > 0 ? "connected" : "empty",
+        rowCount: marketing.rowCount,
+        detail:
+          marketing.rowCount > 0
+            ? `daily grain · reconciled to monthly in attribution · last row ${marketing.lastDate ?? "unknown"}`
+            : "No spend rows seeded",
       },
       {
         id: "calendar",

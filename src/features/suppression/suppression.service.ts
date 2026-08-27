@@ -32,7 +32,14 @@ export class SuppressionService {
       type: "query",
       sourceId: "WAREHOUSE/calendar_events",
       excerpt: `select id, label, region, starts_on, ends_on, kind\nfrom calendar_events\nwhere (region is null or region = '${segmentValue}')\n  and starts_on < '${periodEnd}'\n  and ends_on >= '${periodStart}';`,
-      meta: { region: segmentValue, period_start: periodStart, period_end: periodEnd },
+      meta: {
+        region: segmentValue,
+        period_start: periodStart,
+        period_end: periodEnd,
+        source: "Business calendar",
+        grain: "event window",
+        method: "Deterministic overlap check",
+      },
       table: {
         columns: ["label", "kind", "starts_on", "ends_on"],
         rows: [[event.label, event.kind, event.startsOn, event.endsOn]],

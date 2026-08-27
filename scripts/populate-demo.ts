@@ -2,23 +2,26 @@ import { getMetricConfig, metricKeys } from "../src/config/metrics";
 import { detectionService, findingsService } from "../src/container";
 import { sql } from "../src/db/client";
 
-const REGIONS = ["West", "East", "Central", "South"];
+const REGIONS = ["West", "East", "Central", "South", "Online"];
 
 const asOfArg = process.argv.find((arg) => arg.startsWith("--asOf="));
 const fixedAsOf = asOfArg ? asOfArg.split("=")[1] : undefined;
 const SCAN = process.argv.includes("--scan");
 
-// Detection is deterministic and costs nothing, so we can sweep every candidate
-// month to find where a metric actually moved, then spend the model calls only on
-// that month. Without this, running at the true latest period returns a quiet card
-// for almost everything.
-async function findMostNotableMonth(metricKey: string, region: string, candidates: string[]): Promise<string | null> {
+async function findMostNotableMonth(
+  metricKey: string,
+  region: string,
+  candidates: string[]
+): Promise<{ month: string | null; sparse: boolean }> {
   const metric = getMetricConfig(metricKey);
   let best: { month: string; magnitude: number } | null = null;
 
   for (const month of candidates) {
     try {
       const result = await detectionService.run(metric, region, month);
+      if (result.mode === "sparse") {
+        return { month: null, sparse: true };
+      }
       if (!result.isSignificant) continue;
 
       const magnitude = Math.abs(result.changePct);
@@ -26,11 +29,11 @@ async function findMostNotableMonth(metricKey: string, region: string, candidate
         best = { month, magnitude };
       }
     } catch {
-      // Not enough trailing history for this month; skip it.
+      // not enough trailing history for this month
     }
   }
 
-  return best?.month ?? null;
+  return { month: best?.month ?? null, sparse: false };
 }
 
 async function run() {
@@ -52,28 +55,38 @@ async function run() {
 
   for (const { metric, region } of combos) {
     let asOf = fixedAsOf;
+    let runSparse = false;
 
     if (SCAN && !fixedAsOf) {
       const notable = await findMostNotableMonth(metric, region, candidates);
-      if (!notable) {
+      if (notable.sparse) {
+        runSparse = true;
+      } else if (!notable.month) {
         skipped += 1;
         console.log(`  ${metric} / ${region}: no significant month in range, skipped`);
         continue;
+      } else {
+        asOf = notable.month;
       }
-      asOf = notable;
     }
 
     try {
-      const result = await findingsService.run(metric, region, asOf);
+      const result = await findingsService.run(metric, region, runSparse ? undefined : asOf);
       const insight = result.insights[0]!;
 
-      if (insight.suppressedReason) {
+      if (insight.dataMode === "sparse") {
+        suppressed += 1;
+        console.log(`  ${metric} / ${region}: sparse (${insight.historyMonths ?? 0} months on file)`);
+      } else if (insight.abstained) {
+        flagged += 1;
+        console.log(`  ${metric} / ${region} @ ${asOf ?? "latest"}: abstained (${insight.changePct.toFixed(1)}%)`);
+      } else if (insight.suppressedReason) {
         suppressed += 1;
         console.log(`  ${metric} / ${region} @ ${asOf ?? "latest"}: suppressed (${insight.changePct.toFixed(1)}%)`);
       } else {
         flagged += 1;
         console.log(
-          `  ${metric} / ${region} @ ${asOf ?? "latest"}: ${insight.changePct.toFixed(1)}% — ${insight.verdict.level}, coverage ${insight.verdict.coveragePct}%, ${insight.causes.length} causes`
+          `  ${metric} / ${region} @ ${asOf ?? "latest"}: ${insight.changePct.toFixed(1)}% — ${insight.verdict.level}, coverage ${insight.verdict.coveragePct}%, ${insight.causes.length} causes, $${insight.telemetry?.estCostUsd.toFixed(4) ?? "?"}`
         );
       }
     } catch (err) {

@@ -4,23 +4,35 @@ import type { NotesRepository } from "../../repositories/notes.repository";
 
 const RETRIEVAL_LIMIT = 8;
 
+export interface RetrievalResult {
+  evidence: Evidence[];
+  embedTokens: number;
+}
+
 export class RetrievalService {
   constructor(private notesRepository: NotesRepository, private voyage: VoyageClient) {}
 
-  async run(queryText: string, entityRefs: string[]): Promise<Evidence[]> {
+  async run(queryText: string, entityRefs: string[]): Promise<RetrievalResult> {
     if (entityRefs.length === 0) {
-      return [];
+      return { evidence: [], embedTokens: 0 };
     }
 
-    const [embedding] = await this.voyage.embed([queryText], "query");
-    const notes = await this.notesRepository.searchByEmbedding(embedding!, entityRefs, RETRIEVAL_LIMIT);
+    const { embeddings, tokens } = await this.voyage.embed([queryText], "query");
+    const notes = await this.notesRepository.searchByEmbedding(embeddings[0]!, entityRefs, RETRIEVAL_LIMIT);
 
-    return notes.map((note) => ({
+    const evidence = notes.map((note) => ({
       id: note.id,
       type: note.type,
       sourceId: note.sourceId,
       excerpt: note.excerpt,
-      meta: note.meta,
+      meta: {
+        ...note.meta,
+        source: "CRM",
+        grain: "per interaction",
+        method: "Vector cosine search over embedded notes",
+      },
     }));
+
+    return { evidence, embedTokens: tokens };
   }
 }

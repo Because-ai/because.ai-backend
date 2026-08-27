@@ -5,6 +5,8 @@ import { OrdersRepository } from "./repositories/orders.repository";
 import { CalendarRepository } from "./repositories/calendar.repository";
 import { NotesRepository } from "./repositories/notes.repository";
 import { CachedFindingsRepository } from "./repositories/cached-findings.repository";
+import { FeedbackRepository } from "./repositories/feedback.repository";
+import { MarketingRepository } from "./repositories/marketing.repository";
 import { DetectionService } from "./features/detection/detection.service";
 import { DetectionController } from "./features/detection/detection.controller";
 import { SuppressionService } from "./features/suppression/suppression.service";
@@ -24,22 +26,29 @@ import { MetricsController } from "./features/metrics/metrics.controller";
 import { SourcesService } from "./features/sources/sources.service";
 import { SourcesController } from "./features/sources/sources.controller";
 import { SourcesRepository } from "./repositories/sources.repository";
+import { ContractService } from "./features/contract/contract.service";
+import { ContractController } from "./features/contract/contract.controller";
+import { FeedbackService } from "./features/feedback/feedback.service";
+import { FeedbackController } from "./features/feedback/feedback.controller";
 
 const ordersRepository = new OrdersRepository(sql);
 const calendarRepository = new CalendarRepository(sql);
 const notesRepository = new NotesRepository(sql);
 const cachedFindingsRepository = new CachedFindingsRepository(sql);
 const sourcesRepository = new SourcesRepository(sql);
+const feedbackRepository = new FeedbackRepository(sql);
+const marketingRepository = new MarketingRepository(sql);
 
 const openRouterClient = new OpenRouterClient();
 const voyageClient = new VoyageClient();
 
 export const detectionService = new DetectionService(ordersRepository);
 const suppressionService = new SuppressionService(calendarRepository);
-export const attributionService = new AttributionService(ordersRepository);
+export const attributionService = new AttributionService(ordersRepository, marketingRepository);
 const retrievalService = new RetrievalService(notesRepository, voyageClient);
 const narrativeService = new NarrativeService(openRouterClient);
 const verifierService = new VerifierService(openRouterClient);
+export const feedbackService = new FeedbackService(feedbackRepository);
 
 export const findingsService = new FindingsService(
   detectionService,
@@ -48,11 +57,13 @@ export const findingsService = new FindingsService(
   retrievalService,
   narrativeService,
   verifierService,
-  cachedFindingsRepository
+  cachedFindingsRepository,
+  feedbackService
 );
 
 const metricsService = new MetricsService();
 const sourcesService = new SourcesService(sourcesRepository);
+const contractService = new ContractService();
 
 export const metricsController = new MetricsController(metricsService);
 export const sourcesController = new SourcesController(sourcesService);
@@ -63,3 +74,5 @@ export const retrievalController = new RetrievalController(retrievalService);
 export const narrativeController = new NarrativeController(narrativeService);
 export const verifierController = new VerifierController(verifierService);
 export const findingsController = new FindingsController(findingsService);
+export const contractController = new ContractController(contractService);
+export const feedbackController = new FeedbackController(feedbackService);

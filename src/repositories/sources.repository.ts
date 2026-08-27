@@ -56,4 +56,15 @@ export class SourcesRepository {
     const [row] = await this.sql<{ count: string }[]>`select count(*) as count from cached_findings`;
     return Number(row?.count ?? 0);
   }
+
+  async marketingStats(): Promise<{ rowCount: number; lastDate: string | null }> {
+    try {
+      const [row] = await this.sql<{ row_count: string; last_date: string | null }[]>`
+        select count(*) as row_count, max(spend_date)::text as last_date from marketing_spend
+      `;
+      return { rowCount: Number(row?.row_count ?? 0), lastDate: row?.last_date ?? null };
+    } catch {
+      return { rowCount: 0, lastDate: null };
+    }
+  }
 }

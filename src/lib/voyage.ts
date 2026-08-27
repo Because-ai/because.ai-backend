@@ -9,8 +9,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export const VOYAGE_MODEL = "voyage-4-lite";
+
+export interface EmbedResult {
+  embeddings: number[][];
+  tokens: number;
+}
+
 export class VoyageClient {
-  async embed(texts: string[], inputType: "query" | "document"): Promise<number[][]> {
+  async embed(texts: string[], inputType: "query" | "document"): Promise<EmbedResult> {
     let lastError = "";
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -21,7 +28,7 @@ export class VoyageClient {
           authorization: `Bearer ${env.VOYAGE_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "voyage-4-lite",
+          model: VOYAGE_MODEL,
           input: texts,
           input_type: inputType,
           output_dimension: EMBEDDING_DIMENSIONS,
@@ -29,8 +36,8 @@ export class VoyageClient {
       });
 
       if (response.ok) {
-        const data = (await response.json()) as { data: { embedding: number[] }[] };
-        return data.data.map((item) => item.embedding);
+        const data = (await response.json()) as { data: { embedding: number[] }[]; usage?: { total_tokens?: number } };
+        return { embeddings: data.data.map((item) => item.embedding), tokens: data.usage?.total_tokens ?? 0 };
       }
 
       lastError = `${response.status} ${await response.text()}`;

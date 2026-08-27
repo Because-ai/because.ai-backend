@@ -4,6 +4,9 @@ import { VoyageClient } from "../src/lib/voyage";
 
 const voyage = new VoyageClient();
 
+const REGIONS = ["West", "East", "Central", "South"];
+const CUSTOMERS_PER_REGION = 18;
+
 const NOTE_TEMPLATES: Array<(name: string) => string> = [
   (name) =>
     `Call with the buyer at ${name}. They like the product but pushed hard on price this cycle, mentioned a competitor quote came in noticeably lower on the same order size. Offered our standard volume discount, they said they'd think about it.`,
@@ -17,32 +20,51 @@ const NOTE_TEMPLATES: Array<(name: string) => string> = [
 
 const TYPES: Array<"note" | "ticket" | "call"> = ["note", "ticket", "call"];
 
+interface PendingNote {
+  id: string;
+  type: "note" | "ticket" | "call";
+  sourceId: string;
+  entityRef: string;
+  excerpt: string;
+  account: string;
+}
+
 async function run() {
-  const customers = await sql<{ customer_id: string; customer_name: string }[]>`
-    select customer_id, max(customer_name) as customer_name
-    from orders
-    where region = 'West'
-    group by customer_id
-    order by count(*) desc
-    limit 20
-  `;
+  const pending: PendingNote[] = [];
+  let sourceCounter = 1000;
 
-  console.log(`seeding notes for ${customers.length} West-region customers`);
+  for (const region of REGIONS) {
+    const customers = await sql<{ customer_id: string; customer_name: string }[]>`
+      select customer_id, max(customer_name) as customer_name
+      from orders
+      where region = ${region}
+      group by customer_id
+      order by count(*) desc
+      limit ${CUSTOMERS_PER_REGION}
+    `;
 
-  const notes = customers.map((customer, i) => ({
-    customer,
-    type: TYPES[i % TYPES.length]!,
-    excerpt: NOTE_TEMPLATES[i % NOTE_TEMPLATES.length]!(customer.customer_name),
-    id: `note-${customer.customer_id}-${randomUUID().slice(0, 8)}`,
-  }));
+    customers.forEach((customer, index) => {
+      const templateIndex = region === "South" ? 4 : index % NOTE_TEMPLATES.length;
+      pending.push({
+        id: `note-${customer.customer_id}-${randomUUID().slice(0, 8)}`,
+        type: TYPES[index % TYPES.length]!,
+        sourceId: `CRM-${sourceCounter++}`,
+        entityRef: customer.customer_id,
+        excerpt: NOTE_TEMPLATES[templateIndex]!(customer.customer_name),
+        account: customer.customer_name,
+      });
+    });
+  }
 
-  const embeddings = await voyage.embed(
-    notes.map((note) => note.excerpt),
+  console.log(`seeding ${pending.length} notes across ${REGIONS.length} regions`);
+
+  const { embeddings } = await voyage.embed(
+    pending.map((note) => note.excerpt),
     "document"
   );
 
-  for (let i = 0; i < notes.length; i++) {
-    const note = notes[i]!;
+  for (let i = 0; i < pending.length; i++) {
+    const note = pending[i]!;
     const vectorLiteral = `[${embeddings[i]!.join(",")}]`;
 
     await sql`
@@ -50,11 +72,11 @@ async function run() {
       values (
         ${note.id},
         ${note.type},
-        ${`CRM-${1000 + i}`},
+        ${note.sourceId},
         'customer',
-        ${note.customer.customer_id},
+        ${note.entityRef},
         ${note.excerpt},
-        ${sql.json({ account: note.customer.customer_name, logged: new Date().toISOString().slice(0, 10) })},
+        ${sql.json({ account: note.account, logged: new Date().toISOString().slice(0, 10) })},
         ${vectorLiteral}::vector
       )
       on conflict (id) do nothing

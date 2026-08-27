@@ -1,5 +1,6 @@
 import { verifierOutputSchema, type EvidenceMap, type NarrativeSentence, type VerdictLevel } from "../../lib/contract";
 import type { OpenRouterClient } from "../../lib/openrouter";
+import { ZERO_USAGE, type TokenUsage } from "../../lib/pricing";
 
 export interface VerifierResult {
   narrative: NarrativeSentence[];
@@ -7,6 +8,7 @@ export interface VerifierResult {
   level: VerdictLevel;
   coveragePct: number;
   missingData: string[];
+  usage: TokenUsage;
 }
 
 const SYSTEM_PROMPT = `You are the verifier step of Because.ai — a separate, independent, adversarial check on a narrative someone else wrote. You do not see how it was generated, what data was analyzed, or why particular causes were chosen. You only see each sentence that claims to be backed by evidence, and the actual content of that evidence.
@@ -36,6 +38,7 @@ export class VerifierService {
         level: "not_sure",
         coveragePct: 0,
         missingData: ["No sentence in the narrative cites any evidence."],
+        usage: { ...ZERO_USAGE },
       };
     }
 
@@ -49,7 +52,8 @@ export class VerifierService {
       })),
     });
 
-    const result = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "verifier_output" }, verifierOutputSchema);
+    const completion = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "verifier_output" }, verifierOutputSchema);
+    const result = completion.value;
 
     if (result.sentenceVerdicts.length !== judgeable.length) {
       console.error(
@@ -88,6 +92,7 @@ export class VerifierService {
       level,
       coveragePct,
       missingData: result.missingData,
+      usage: completion.usage,
     };
   }
 }

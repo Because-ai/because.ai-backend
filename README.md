@@ -18,6 +18,22 @@ The brief asked for a KPI storytelling engine that explains what changed in a bu
 
 ---
 
+## Round 2 additions
+
+On top of the five-step pipeline below, Round 2 adds:
+
+- **A governed KPI contract** (`src/config/contract.ts`, `GET /api/contract`) — per-metric definition, formula, grain, source lineage, named drivers, materiality thresholds, owner, refresh cadence and access rules. The pipeline reads it before it reads data.
+- **Two-part materiality** — a move is raised only if it is statistically unusual *and* large enough in absolute terms or as a share of a typical month.
+- **Persona views** — every finding carries an executive, regional-manager and analyst version of the narrative and actions, each on its own delivery channel.
+- **Role-based entitlement** (`src/config/roles.ts`) — `?role=cfo|west_sales_lead|ops_viewer` scopes metrics and regions, returns 403 for out-of-scope requests, and redacts customer names for roles without the PII grant.
+- **A feedback loop** (`POST /api/feedback`, migrations 005–006) — "not material" twice widens a series' significance band; "wrong driver" twice hides that driver. `GET /api/feedback/learned` lists every adjustment.
+- **Abstention** — when verifier coverage falls below a floor, or sources contradict each other, the engine publishes the movement and a clarifying question instead of a low-confidence explanation.
+- **A sparse-history path** — a series with fewer than three months of data returns a "collecting history" card with no model spend instead of an error.
+- **A daily-grain source** — `marketing_spend` (migration 007) is reconciled from daily to monthly in attribution and surfaces staleness.
+- **Runtime telemetry** — every finding carries per-step latency, token counts, model-call count and an estimated USD cost.
+
+---
+
 ## The five steps
 
 All five run. None are stubs.
@@ -227,8 +243,12 @@ bun install
 bun run migrate            # applies src/db/migrations/*.sql in order
 bun run load:superstore    # loads 9,994 rows into orders
 bun run seed:calendar      # promo windows for each year in the data
-bun run seed:notes         # generates and embeds notes (one batched Voyage call)
+bun run seed:notes         # generates and embeds notes for all four regions (one batched Voyage call)
+bun run seed:sparse        # a newly-launched "Online" region with 2 months of history
+bun run seed:marketing     # daily marketing spend, with a cut in the West in Sept 2017
 ```
+
+Or run the whole sequence, including a reset, with `bun run demo`.
 
 `seed:notes` batches all embeddings into a single request. Voyage's free tier allows 3 requests per minute, and one call per note trips the rate limit immediately.
 
@@ -267,12 +287,18 @@ Detection is deterministic and free, so `populate:demo` sweeps every candidate m
 
 `asOf` pins the analysis to a historical month. Any pipeline failure falls back to the last good cached response and marks it `source: "cache"` rather than erroring.
 
+`role` may be added to any `/api/findings` request: `cfo` (default), `west_sales_lead`, `ops_viewer`.
+
 **Reference**
 
 | Method | Endpoint | Returns |
 |---|---|---|
 | `GET` | `/api/metrics` | metric definitions from config |
+| `GET` | `/api/contract` | the governed KPI contract for every metric |
+| `GET` | `/api/contract/:metric` | one metric's contract |
 | `GET` | `/api/sources` | connector inventory with live row counts |
+| `POST` | `/api/feedback` | record analyst / business-user feedback, returns the learned adjustment |
+| `GET` | `/api/feedback/learned` | every band and driver adjustment the feedback loop has made |
 | `GET` | `/health` | liveness |
 
 **Per-step, for debugging without paying for the whole pipeline**
@@ -337,22 +363,24 @@ Stated plainly, because they are real.
 
 ```
 src/
-  config/          metric definitions, environment validation
-  db/              migrations, client, migration runner
+  config/          metric definitions, KPI contract, personas, roles, environment validation
+  db/              migrations (001-007), client, migration runner
   features/
-    detection/     01. significance band
+    detection/     01. significance band + materiality
     suppression/   02. calendar check
-    attribution/   03. SQL drill-down
+    attribution/   03. SQL drill-down (category, discount, accounts, marketing)
     retrieval/     04a. entity-filtered vector search
     narrative/     04b. model call 1
     verifier/      05. model call 2, isolated
-    findings/      orchestration, cache, fallback
+    findings/      orchestration, cache, fallback, personas, abstention, telemetry
+    contract/      the KPI contract as an endpoint
+    feedback/      feedback capture and the learning loop
     metrics/       config as an endpoint
     sources/       connector inventory
   repositories/    data access shared across steps
-  lib/             contract types, OpenRouter and Voyage clients, formatting
+  lib/             contract types, OpenRouter and Voyage clients, pricing, formatting
   container.ts     one place where everything is wired
-scripts/           load, seed, populate, evaluate
+scripts/           load, seed (calendar/notes/sparse/marketing), reset, populate, evaluate, demo
 ```
 
 One directory per pipeline step. Each has a service, and a controller and routes where the step is independently useful over HTTP. Data access shared by more than one step lives in `repositories/` rather than being duplicated. Nothing constructs its own dependencies; `container.ts` does it once.

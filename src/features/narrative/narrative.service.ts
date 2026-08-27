@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { actionSchema, type Cause, type Evidence, type NarrativeGeneration } from "../../lib/contract";
 import type { OpenRouterClient } from "../../lib/openrouter";
+import type { TokenUsage } from "../../lib/pricing";
+
+export interface NarrativeResult extends NarrativeGeneration {
+  usage: TokenUsage;
+}
 
 export interface NarrativeInput {
   metric: string;
@@ -45,7 +50,7 @@ function buildNarrativeSchema(evidenceIds: string[]) {
 export class NarrativeService {
   constructor(private openRouter: OpenRouterClient) {}
 
-  async generate(input: NarrativeInput): Promise<NarrativeGeneration> {
+  async generate(input: NarrativeInput): Promise<NarrativeResult> {
     const user = JSON.stringify({
       metric: input.metric,
       segment: input.segment,
@@ -69,6 +74,6 @@ export class NarrativeService {
 
     const schema = buildNarrativeSchema(input.evidence.map((item) => item.id));
     const result = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "narrative_generation" }, schema);
-    return result as NarrativeGeneration;
+    return { ...(result.value as NarrativeGeneration), usage: result.usage };
   }
 }

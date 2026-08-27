@@ -8,6 +8,8 @@ import { verifierRoutes } from "./features/verifier/verifier.routes";
 import { findingsRoutes } from "./features/findings/findings.routes";
 import { metricsRoutes } from "./features/metrics/metrics.routes";
 import { sourcesRoutes } from "./features/sources/sources.routes";
+import { contractRoutes } from "./features/contract/contract.routes";
+import { feedbackRoutes } from "./features/feedback/feedback.routes";
 
 export const app = express();
 
@@ -26,3 +28,5 @@ app.use("/api/verifier", verifierRoutes());
 app.use("/api/findings", findingsRoutes());
 app.use("/api/metrics", metricsRoutes());
 app.use("/api/sources", sourcesRoutes());
+app.use("/api/contract", contractRoutes());
+app.use("/api/feedback", feedbackRoutes());

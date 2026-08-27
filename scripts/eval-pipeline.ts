@@ -102,7 +102,8 @@ async function run() {
 
       if (RUN_FULL) {
         const retrievalQuery = attributionResult.causes.map((cause) => cause.claim).join(". ") || `${metric.label} change in ${region}`;
-        const noteEvidence = await retrievalService.run(retrievalQuery, attributionResult.entityRefs);
+        const retrievalResult = await retrievalService.run(retrievalQuery, attributionResult.entityRefs);
+        const noteEvidence = retrievalResult.evidence;
         const allEvidence = [buildTrendEvidence(detectionResult), ...attributionResult.evidence, ...noteEvidence];
         const evidenceMap = Object.fromEntries(allEvidence.map((item) => [item.id, item]));
 

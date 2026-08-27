@@ -15,8 +15,8 @@ export class RetrievalController {
     }
 
     try {
-      const evidence = await this.retrievalService.run(query, entityRefs);
-      res.json({ evidence });
+      const result = await this.retrievalService.run(query, entityRefs);
+      res.json({ evidence: result.evidence, embedTokens: result.embedTokens });
     } catch (err) {
       res.status(500).json({ error: describeError(err) });
     }

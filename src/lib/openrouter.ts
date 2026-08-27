@@ -1,11 +1,18 @@
 import OpenAI from "openai";
 import { toJSONSchema, type z } from "zod";
 import { env } from "../config/env";
+import { ZERO_USAGE, type TokenUsage } from "./pricing";
 
 export interface StructuredCompletionRequest {
   system: string;
   user: string;
   schemaName: string;
+}
+
+export interface StructuredCompletionResult<T> {
+  value: T;
+  usage: TokenUsage;
+  model: string;
 }
 
 export class OpenRouterClient {
@@ -21,9 +28,10 @@ export class OpenRouterClient {
   async completeStructured<Schema extends z.ZodType>(
     request: StructuredCompletionRequest,
     schema: Schema
-  ): Promise<z.infer<Schema>> {
+  ): Promise<StructuredCompletionResult<z.infer<Schema>>> {
     const jsonSchema = toJSONSchema(schema, { target: "draft-7" });
     let lastError: unknown;
+    let accumulated: TokenUsage = { ...ZERO_USAGE };
 
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await this.client.chat.completions.create({
@@ -43,6 +51,11 @@ export class OpenRouterClient {
         },
       });
 
+      accumulated = {
+        prompt: accumulated.prompt + (response.usage?.prompt_tokens ?? 0),
+        completion: accumulated.completion + (response.usage?.completion_tokens ?? 0),
+      };
+
       const content = response.choices[0]?.message?.content;
       if (!content) {
         lastError = new Error("OpenRouter returned an empty response");
@@ -61,7 +74,7 @@ export class OpenRouterClient {
 
       const parsed = schema.safeParse(raw);
       if (parsed.success) {
-        return parsed.data;
+        return { value: parsed.data, usage: accumulated, model: env.OPENROUTER_MODEL };
       }
       lastError = parsed.error;
     }
