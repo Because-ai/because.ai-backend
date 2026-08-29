@@ -1,6 +1,6 @@
 import { sql } from "./db/client";
-import { OpenRouterClient } from "./lib/openrouter";
-import { VoyageClient } from "./lib/voyage";
+import { LlmClient } from "./lib/llm";
+import { EmbeddingClient } from "./lib/embeddings";
 import { OrdersRepository } from "./repositories/orders.repository";
 import { CalendarRepository } from "./repositories/calendar.repository";
 import { NotesRepository } from "./repositories/notes.repository";
@@ -39,15 +39,15 @@ const sourcesRepository = new SourcesRepository(sql);
 const feedbackRepository = new FeedbackRepository(sql);
 const marketingRepository = new MarketingRepository(sql);
 
-const openRouterClient = new OpenRouterClient();
-const voyageClient = new VoyageClient();
+const llmClient = new LlmClient();
+const embeddingClient = new EmbeddingClient();
 
 export const detectionService = new DetectionService(ordersRepository);
 const suppressionService = new SuppressionService(calendarRepository);
 export const attributionService = new AttributionService(ordersRepository, marketingRepository);
-const retrievalService = new RetrievalService(notesRepository, voyageClient);
-const narrativeService = new NarrativeService(openRouterClient);
-const verifierService = new VerifierService(openRouterClient);
+const retrievalService = new RetrievalService(notesRepository, embeddingClient);
+const narrativeService = new NarrativeService(llmClient);
+const verifierService = new VerifierService(llmClient);
 export const feedbackService = new FeedbackService(feedbackRepository);
 
 export const findingsService = new FindingsService(

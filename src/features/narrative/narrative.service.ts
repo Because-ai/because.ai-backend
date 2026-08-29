@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { actionSchema, type Cause, type Evidence, type NarrativeGeneration } from "../../lib/contract";
-import type { OpenRouterClient } from "../../lib/openrouter";
+import type { LlmClient } from "../../lib/llm";
 import type { TokenUsage } from "../../lib/pricing";
 
 export interface NarrativeResult extends NarrativeGeneration {
@@ -48,7 +48,11 @@ function buildNarrativeSchema(evidenceIds: string[]) {
 }
 
 export class NarrativeService {
-  constructor(private openRouter: OpenRouterClient) {}
+  constructor(private llm: LlmClient) {}
+
+  get model(): string {
+    return this.llm.model;
+  }
 
   async generate(input: NarrativeInput): Promise<NarrativeResult> {
     const user = JSON.stringify({
@@ -73,7 +77,7 @@ export class NarrativeService {
     });
 
     const schema = buildNarrativeSchema(input.evidence.map((item) => item.id));
-    const result = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "narrative_generation" }, schema);
+    const result = await this.llm.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "narrative_generation" }, schema);
     return { ...(result.value as NarrativeGeneration), usage: result.usage };
   }
 }

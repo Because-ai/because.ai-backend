@@ -1,8 +1,8 @@
 import { getMetricConfig } from "../src/config/metrics";
 import { sql } from "../src/db/client";
 import { monthRange, previousMonth } from "../src/lib/dates";
-import { OpenRouterClient } from "../src/lib/openrouter";
-import { VoyageClient } from "../src/lib/voyage";
+import { LlmClient } from "../src/lib/llm";
+import { EmbeddingClient } from "../src/lib/embeddings";
 import { AttributionService } from "../src/features/attribution/attribution.service";
 import { buildTrendEvidence, DetectionService } from "../src/features/detection/detection.service";
 import { NarrativeService } from "../src/features/narrative/narrative.service";
@@ -19,15 +19,15 @@ const MONTHS_TO_EVALUATE = 5;
 const ordersRepository = new OrdersRepository(sql);
 const calendarRepository = new CalendarRepository(sql);
 const notesRepository = new NotesRepository(sql);
-const openRouter = new OpenRouterClient();
-const voyage = new VoyageClient();
+const llm = new LlmClient();
+const embedder = new EmbeddingClient();
 
 const detectionService = new DetectionService(ordersRepository);
 const suppressionService = new SuppressionService(calendarRepository);
 const attributionService = new AttributionService(ordersRepository);
-const retrievalService = new RetrievalService(notesRepository, voyage);
-const narrativeService = new NarrativeService(openRouter);
-const verifierService = new VerifierService(openRouter);
+const retrievalService = new RetrievalService(notesRepository, embedder);
+const narrativeService = new NarrativeService(llm);
+const verifierService = new VerifierService(llm);
 
 async function run() {
   const metric = getMetricConfig("sales");

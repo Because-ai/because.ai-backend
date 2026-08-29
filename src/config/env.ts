@@ -2,9 +2,8 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required (Postgres connection string, e.g. from Neon)"),
-  OPENROUTER_API_KEY: z.string().min(1, "OPENROUTER_API_KEY is required"),
-  OPENROUTER_MODEL: z.string().min(1, "OPENROUTER_MODEL is required, e.g. google/gemini-2.5-flash-lite"),
-  VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),
+  OLLAMA_BASE_URL: z.string().default("http://localhost:11434/v1"),
+  OLLAMA_MODEL: z.string().default("qwen2.5:7b-instruct"),
   PORT: z.string().default("4000"),
 });
 

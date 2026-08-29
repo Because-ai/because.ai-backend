@@ -32,7 +32,7 @@ Every minimum prototype expectation, and where to see it.
 | The brief asked for | Where it is | See it |
 |---|---|---|
 | 3–5 connected KPIs across 2–3 sources with different grains | 4 KPIs (`sales`, `profit`, `quantity`, `discount`) across 3 sources: warehouse (monthly), CRM notes (per interaction), marketing spend (**daily**, reconciled to monthly) | `/sources`, `GET /api/sources` |
-| A lightweight KPI / semantic contract | `src/config/contract.ts` — definition, formula, grain, lineage, drivers, materiality thresholds, owner, refresh cadence, access rules | `/contract`, `GET /api/contract` |
+| A lightweight KPI / semantic contract | `src/config/contract.ts`: definition, formula, grain, lineage, drivers, materiality thresholds, owner, refresh cadence, access rules | `/contract`, `GET /api/contract` |
 | ≥2 personas receiving different narratives or actions | Executive, regional manager and analyst views on every finding, each with a delivery channel | persona switcher on any finding |
 | One multi-factor KPI movement with known drivers | Attribution ranks category mix, discount rate, account movement and marketing spend, each with its own evidence | "What drove this" on any finding |
 | One low-confidence scenario that abstains or asks | Coverage below the floor, or a detected contradiction, publishes the movement plus a clarifying question and no explanation | the finding marked **Abstained** |
@@ -50,15 +50,15 @@ parts of it that the evidence does not support.
 
 ## What the pipeline adds beyond storytelling
 
-- **A governed KPI contract** (`src/config/contract.ts`, `GET /api/contract`) — per-metric definition, formula, grain, source lineage, named drivers, materiality thresholds, owner, refresh cadence and access rules. The pipeline reads it before it reads data.
-- **Two-part materiality** — a move is raised only if it is statistically unusual *and* large enough in absolute terms or as a share of a typical month. Statistically odd but trivially small moves are stated and not raised.
-- **Persona views** — every finding carries an executive, regional-manager and analyst version of the narrative and actions. Each is a subset of the sentences the verifier approved, so switching persona never introduces a claim.
-- **Role-based entitlement** (`src/config/roles.ts`) — `?role=cfo|west_sales_lead|ops_viewer` scopes metrics and regions, returns 403 for out-of-scope requests, and redacts customer names for roles without the PII grant. Every finding records the role it was viewed as.
-- **A feedback loop** (`POST /api/feedback`, migrations 005–006) — two "not material" responses widen that series' significance band; two "wrong driver" responses hide that driver. `GET /api/feedback/learned` lists every adjustment and the reason for it.
-- **Abstention** — when verifier coverage falls below a floor, or a deterministic check finds sources contradicting each other, the engine publishes the movement and a specific clarifying question instead of a low-confidence explanation.
-- **A sparse-history path** — a series with fewer than three months of data returns a "collecting history" card with zero model spend, rather than erroring or guessing.
-- **A daily-grain source** — `marketing_spend` (migration 007) is summed from daily to monthly inside attribution, and its evidence states the reconciliation and the staleness of the last row.
-- **Runtime telemetry** — every finding carries per-step latency, prompt and completion token counts, model-call count and an estimated USD cost (`src/lib/pricing.ts`).
+- **A governed KPI contract** (`src/config/contract.ts`, `GET /api/contract`). Per-metric definition, formula, grain, source lineage, named drivers, materiality thresholds, owner, refresh cadence and access rules. The pipeline reads it before it reads data.
+- **Two-part materiality**. A move is raised only if it is statistically unusual *and* large enough in absolute terms or as a share of a typical month. Statistically odd but trivially small moves are stated and not raised.
+- **Persona views**. Every finding carries an executive, regional-manager and analyst version of the narrative and actions. Each is a subset of the sentences the verifier approved, so switching persona never introduces a claim.
+- **Role-based entitlement** (`src/config/roles.ts`). `?role=cfo|west_sales_lead|ops_viewer` scopes metrics and regions, returns 403 for out-of-scope requests, and redacts customer names for roles without the PII grant. Every finding records the role it was viewed as.
+- **A feedback loop** (`POST /api/feedback`, migrations 005–006). Two "not material" responses widen that series' significance band; two "wrong driver" responses hide that driver. `GET /api/feedback/learned` lists every adjustment and the reason for it.
+- **Abstention**. When verifier coverage falls below a floor, or a deterministic check finds sources contradicting each other, the engine publishes the movement and a specific clarifying question instead of a low-confidence explanation.
+- **A sparse-history path**. A series with fewer than three months of data returns a "collecting history" card with zero model spend, rather than erroring or guessing.
+- **A daily-grain source**. `marketing_spend` (migration 007) is summed from daily to monthly inside attribution, and its evidence states the reconciliation and the staleness of the last row.
+- **Runtime telemetry**. Every finding carries per-step latency, prompt and completion token counts, model-call count and an estimated USD cost (`src/lib/pricing.ts`).
 
 ---
 
@@ -94,11 +94,11 @@ Three gates, all deterministic.
 
 First, a significance band. We take the trailing six month-over-month percentage changes for that metric and segment, and compute mean ± Nσ. A move clears the first gate only if it falls outside that band.
 
-Second, a materiality floor from the KPI contract. Statistical unusualness alone is not enough — the move must also be worth a dollar amount above a threshold, or a meaningful share of a typical month for that series. This is what stops a tiny-but-odd swing on a quiet metric from reaching a leader. Both tests are reported in plain language, not as a boolean:
+Second, a materiality floor from the KPI contract. Statistical unusualness alone is not enough. The move must also be worth a dollar amount above a threshold, or a meaningful share of a typical month for that series. This is what stops a tiny-but-odd swing on a quiet metric from reaching a leader. Both tests are reported in plain language, not as a boolean:
 
 > Sales fell 56.0%, outside the normal range of -20.8% to 79.5% over the trailing 6 months, and the $18,400 swing is large enough to matter (31% of a typical month)
 
-> Profit moved 41.2% — statistically unusual, but the $840 swing is too small to act on (4% of a typical month), so it is not raised
+> Profit moved 41.2%, statistically unusual, but the $840 swing is too small to act on (4% of a typical month), so it is not raised
 
 The N in Nσ is not a constant. It starts at 1.5 and moves per series as the feedback loop learns which movements that team actually cares about, and the reason is appended to the sentence when it differs.
 
@@ -163,8 +163,8 @@ Verification produces a coverage number, not a decision. Two deterministic check
 into one.
 
 If coverage falls below a floor, the explanation is not shown. If a contradiction check
-fires — accounts flagged as declining while every CRM note retrieved for them reports
-business as usual, or a category breakdown pointing against the headline — the same thing
+fires (accounts flagged as declining while every CRM note retrieved for them reports
+business as usual, or a category breakdown pointing against the headline), the same thing
 happens, regardless of coverage.
 
 In either case the finding still publishes. It carries the movement, the band it broke, what
@@ -214,8 +214,8 @@ flowchart TD
     end
 
     subgraph external["External services"]
-        VO["Voyage AI<br/>voyage-4-lite · 1024-dim"]
-        OR["OpenRouter<br/>gemini-2.5-flash-lite"]
+        VO["mxbai-embed-large-v1<br/>local, 1024-dim"]
+        OR["Ollama<br/>qwen2.5:7b-instruct, local"]
     end
 
     UI["Frontend (Next.js 16)<br/>findings · detail · metrics<br/>contract · sources · learned"]
@@ -301,7 +301,13 @@ We are stating this plainly because overclaiming is what loses credibility. Swap
 
 ## Running it locally
 
-**Prerequisites:** Bun 1.2+, Docker, an OpenRouter API key, a Voyage AI API key.
+**Prerequisites:** Bun 1.2+, Docker, and [Ollama](https://ollama.com). No API keys: both models run on your machine, so `DATABASE_URL` is the only credential.
+
+Pull the generation model before the first run:
+
+```bash
+ollama pull qwen2.5:7b-instruct
+```
 
 ### 1. Postgres with pgvector
 
@@ -324,9 +330,9 @@ Copy `.env.example` to `.env`:
 
 ```
 DATABASE_URL=postgresql://accenture-admin:accenture@localhost:5432/postgres
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=google/gemini-2.5-flash-lite
-VOYAGE_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=qwen2.5:7b-instruct
+
 PORT=4000
 ```
 
@@ -343,14 +349,14 @@ bun install
 bun run migrate            # applies src/db/migrations/*.sql in order
 bun run load:superstore    # loads 9,994 rows into orders
 bun run seed:calendar      # promo windows for each year in the data
-bun run seed:notes         # generates and embeds 72 notes across all four regions (one batched Voyage call)
+bun run seed:notes         # generates and embeds 72 notes across all four regions
 bun run seed:sparse        # a newly-launched "Online" region with 2 months of history
 bun run seed:marketing     # daily marketing spend, with a cut in the West in Sept 2017
 ```
 
 Or run the whole sequence, including a reset, with `bun run demo`.
 
-`seed:notes` batches all embeddings into a single request. Voyage's free tier allows 3 requests per minute, and one call per note trips the rate limit immediately.
+`seed:notes` batches all 72 notes into a single embedding call. Embeddings are computed in-process by `mxbai-embed-large-v1` through ONNX, so there is no API key, no rate limit and no per-token cost. The model downloads once (~90MB, q8-quantised) and is cached thereafter. q8 was chosen over fp32 after measuring both: the retrieval ranking is identical and it is roughly 80x faster to load.
 
 ### 5. Run
 
@@ -376,8 +382,9 @@ Detection is deterministic and free, so `populate:demo` sweeps every candidate m
 
 The sparse `Online` region is detected as such and skipped without a scan or a model call.
 
-Expect the full sweep to take several minutes. Almost all of that is waiting on Voyage's
-free-tier rate limiter, not compute — the whole run costs about a cent.
+Expect the full sweep to take roughly an hour on a CPU-only machine, dominated by the two
+generation calls per finding. It is a one-time cost: the interface reads the cache. With
+free-tier rate limiter, not compute. The whole run costs about a cent.
 
 ---
 
@@ -423,6 +430,11 @@ free-tier rate limiter, not compute — the whole run costs about a cent.
 
 One full run across every metric and region, reproducible with `bun run demo`.
 
+> The quality figures below were measured before generation moved to a local model. The
+> dataset counts still hold, but coverage, verdicts and stripped-claim counts depend on the
+> model doing the writing and the checking, so re-run `bun run demo` to regenerate them
+> rather than quoting these.
+
 | | |
 |---|---|
 | Transaction rows | 10,042 (2014-01-03 to 2017-12-30) |
@@ -431,9 +443,9 @@ One full run across every metric and region, reproducible with `bun run demo`.
 | Daily marketing spend rows | 8,772 |
 | Combinations checked | 20 (4 metrics × 5 regions) |
 | **Explained** | 12 |
-| **Abstained** — evidence would not support a story | 2 |
-| **Suppressed** — calendar or not material | 2 |
-| **Sparse** — too little history to judge | 4 |
+| **Abstained**, evidence would not support a story | 2 |
+| **Suppressed** by calendar, or not material | 2 |
+| **Sparse**, too little history to judge | 4 |
 | Causes attributed | 33 |
 | Evidence items produced | 54 |
 | Claims stripped by the verifier | 12 |
@@ -444,19 +456,29 @@ One full run across every metric and region, reproducible with `bun run demo`.
 
 **Cost and latency**
 
+Both models run on the machine serving the backend, so there is no per-token cost. What
+replaces it is wall-clock time. Measured on a CPU-only laptop (i5-13500H, 13.7GB RAM, no
+CUDA) for one explained finding, `sales / East` at 2017-01:
+
 | | |
 |---|---|
-| Findings that cost nothing | 6 of 20 (sparse and suppressed exit before any model call) |
-| Findings that made model calls | 14, at 2 calls each |
-| Total tokens across the run | 59,661 |
-| Cost per explained finding | $0.00078 |
-| **Total cost, all 20 combinations** | **$0.011** |
-| Attribution runtime | 26ms worst case, no model call |
-| Median end-to-end latency | 6.8s |
+| Cost, any number of findings | **$0.00** |
+| Model calls | 2 |
+| Tokens | 2,568 prompt, 858 completion |
+| Narrative call | 216s |
+| Verifier call | 125s |
+| Retrieval, including model load | 2.5s |
+| Detection, suppression, attribution combined | 66ms, no model call |
+| **End to end** | **5m 44s** |
 
-Four runs took ~72s instead. All of that is Voyage's free-tier rate limiter — retrieval alone
-accounted for 64 seconds of backoff in each. It is a quota artefact, not a property of the
-pipeline, and we are reporting the median rather than the p95 for that reason.
+The shape is the point. The deterministic stages that produce every number in the output
+finish in well under a tenth of a second. Effectively all of the runtime is the two
+generation calls, and findings that never reach them, the sparse and suppressed ones, cost
+nothing at all.
+
+A CUDA machine runs the same work roughly an order of magnitude faster. The interface reads
+`cached_findings` rather than the pipeline, so this latency is paid once by `populate:demo`
+and not by anyone opening the app.
 
 **The interesting cases**
 
@@ -473,7 +495,7 @@ And two findings refused to explain themselves:
 | | Coverage | What happened |
 |---|---|---|
 | `discount / South` (+212.2%) | 33% | Below the floor. Published the movement and a clarifying question instead of a narrative. |
-| `discount / Central` (+84.0%) | 75% | Coverage was fine — the contradiction check fired. Every CRM note retrieved for the accounts flagged as declining reported business as usual. |
+| `discount / Central` (+84.0%) | 75% | Coverage was fine; the contradiction check fired. Every CRM note retrieved for the accounts flagged as declining reported business as usual. |
 
 The second one is the one to look at first. It abstained *despite* acceptable coverage,
 because a deterministic check caught the evidence disagreeing with itself. Coverage alone
@@ -494,7 +516,7 @@ Stated plainly, because they are real.
 **The materiality floor is hand-set, not derived.** The dollar thresholds in the KPI contract
 are our judgement about this dataset, not a calibration against what a business actually acts
 on. In production they would come from the metric owner, and the feedback loop would move them
-— it currently moves only the sigma band.
+it currently moves only the sigma band.
 
 **Profit percentages are large and hard to read.** Profit crosses zero month to month in this dataset. Dividing by the absolute prior value keeps the sign correct, but a swing from a small loss to a healthy profit is still mathematically a four-figure percentage. The number is right and it looks absurd. A percentage-point presentation would suit this metric family better.
 
@@ -516,7 +538,11 @@ on. In production they would come from the metric owner, and the feedback loop w
 
 **Cost figures are estimates from list prices.** Token counts are measured from the actual API responses, but the dollar figure multiplies them by prices in `src/lib/pricing.ts`. Those are correct as of writing and are not fetched live.
 
-**Rate limits shape the runtime.** Voyage's free tier is 3 requests per minute. There is retry with backoff, and a full 20-combination populate spends most of its wall-clock time waiting on it.
+**Everything runs locally, and that costs wall-clock time.** Both models are served on the machine running the backend: `mxbai-embed-large-v1` in-process through ONNX, and `qwen2.5:7b-instruct` through Ollama. No customer data leaves the network and there is no per-token cost, but on a CPU-only laptop a single explained finding takes around 5 to 6 minutes, almost all of it in the two generation calls. A full sweep is closer to an hour. This is tolerable because the interface reads `cached_findings` rather than running the pipeline, so `populate:demo` is a one-time cost and the app stays instant afterwards. On a CUDA machine the same run is roughly an order of magnitude faster.
+
+**There is deliberately no hosted fallback.** Neither for embeddings nor for generation. A second code path that nothing exercises would rot without anyone noticing, and a documented option that silently fails is worse than no option.
+
+**Model choice is a trade.** `qwen2.5:7b-instruct` was picked because it holds the strict JSON schema, including the dynamic enum of evidence ids, and because its verifier output still discriminates rather than approving everything it is shown. A smaller model will satisfy the schema and return an empty narrative; that failure is quiet, so any model swap needs checking against a known finding rather than trusting that valid JSON means correct JSON.
 
 ---
 
@@ -539,7 +565,7 @@ src/
     metrics/       config as an endpoint
     sources/       connector inventory
   repositories/    data access shared across steps
-  lib/             contract types, OpenRouter and Voyage clients, pricing, formatting
+  lib/             contract types, local LLM client, local embedding client, pricing, formatting
   container.ts     one place where everything is wired
 scripts/           load, seed (calendar/notes/sparse/marketing), reset, populate, evaluate, demo
 docs/              business proposal, demo video script

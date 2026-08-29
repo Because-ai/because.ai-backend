@@ -1,5 +1,5 @@
 import { verifierOutputSchema, type EvidenceMap, type NarrativeSentence, type VerdictLevel } from "../../lib/contract";
-import type { OpenRouterClient } from "../../lib/openrouter";
+import type { LlmClient } from "../../lib/llm";
 import { ZERO_USAGE, type TokenUsage } from "../../lib/pricing";
 
 export interface VerifierResult {
@@ -26,7 +26,7 @@ Always give a reason when the verdict is "unsupported" or "partly", naming speci
 Also list missingData: specific, concrete gaps. Name the exact entity, record, or period you would want evidence for but were not given. Never invent a generic-sounding reason.`;
 
 export class VerifierService {
-  constructor(private openRouter: OpenRouterClient) {}
+  constructor(private llm: LlmClient) {}
 
   async verify(narrative: NarrativeSentence[], evidenceMap: EvidenceMap): Promise<VerifierResult> {
     const judgeable = narrative.map((sentence, index) => ({ sentence, index })).filter(({ sentence }) => sentence.evidenceIds.length > 0);
@@ -52,7 +52,7 @@ export class VerifierService {
       })),
     });
 
-    const completion = await this.openRouter.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "verifier_output" }, verifierOutputSchema);
+    const completion = await this.llm.completeStructured({ system: SYSTEM_PROMPT, user, schemaName: "verifier_output" }, verifierOutputSchema);
     const result = completion.value;
 
     if (result.sentenceVerdicts.length !== judgeable.length) {

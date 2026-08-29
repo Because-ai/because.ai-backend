@@ -1,9 +1,6 @@
 # dependencies (bun install)
 node_modules
 
-# downloaded dataset
-/data/*.csv
-
 # output
 out
 dist

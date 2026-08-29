@@ -13,15 +13,15 @@ interface EmbedPrice {
 }
 
 export const CHAT_PRICES: Record<string, ChatPrice> = {
-  "google/gemini-2.5-flash-lite": { inUsdPerMTok: 0.1, outUsdPerMTok: 0.4 },
+  "qwen2.5:7b-instruct": { inUsdPerMTok: 0, outUsdPerMTok: 0 },
 };
 
 export const EMBED_PRICES: Record<string, EmbedPrice> = {
-  "voyage-4-lite": { usdPerMTok: 0.02 },
+  "mixedbread-ai/mxbai-embed-large-v1": { usdPerMTok: 0 },
 };
 
-const DEFAULT_CHAT_PRICE: ChatPrice = { inUsdPerMTok: 0.15, outUsdPerMTok: 0.6 };
-const DEFAULT_EMBED_PRICE: EmbedPrice = { usdPerMTok: 0.02 };
+const DEFAULT_CHAT_PRICE: ChatPrice = { inUsdPerMTok: 0, outUsdPerMTok: 0 };
+const DEFAULT_EMBED_PRICE: EmbedPrice = { usdPerMTok: 0 };
 
 export function chatCostUsd(model: string, usage: TokenUsage): number {
   const price = CHAT_PRICES[model] ?? DEFAULT_CHAT_PRICE;

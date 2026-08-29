@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "../src/db/client";
-import { VoyageClient } from "../src/lib/voyage";
+import { EmbeddingClient } from "../src/lib/embeddings";
 
-const voyage = new VoyageClient();
+const embedder = new EmbeddingClient();
 
 const REGIONS = ["West", "East", "Central", "South"];
 const CUSTOMERS_PER_REGION = 18;
@@ -58,7 +58,7 @@ async function run() {
 
   console.log(`seeding ${pending.length} notes across ${REGIONS.length} regions`);
 
-  const { embeddings } = await voyage.embed(
+  const { embeddings } = await embedder.embed(
     pending.map((note) => note.excerpt),
     "document"
   );

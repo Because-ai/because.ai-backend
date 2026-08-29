@@ -3,6 +3,10 @@ import { toJSONSchema, type z } from "zod";
 import { env } from "../config/env";
 import { ZERO_USAGE, type TokenUsage } from "./pricing";
 
+const REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
+
+const MAX_COMPLETION_TOKENS = 1536;
+
 export interface StructuredCompletionRequest {
   system: string;
   user: string;
@@ -15,14 +19,20 @@ export interface StructuredCompletionResult<T> {
   model: string;
 }
 
-export class OpenRouterClient {
+export class LlmClient {
   private client: OpenAI;
 
   constructor() {
     this.client = new OpenAI({
-      apiKey: env.OPENROUTER_API_KEY,
-      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: "ollama",
+      baseURL: env.OLLAMA_BASE_URL,
+      timeout: REQUEST_TIMEOUT_MS,
+      maxRetries: 0,
     });
+  }
+
+  get model(): string {
+    return env.OLLAMA_MODEL;
   }
 
   async completeStructured<Schema extends z.ZodType>(
@@ -35,8 +45,8 @@ export class OpenRouterClient {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await this.client.chat.completions.create({
-        model: env.OPENROUTER_MODEL,
-        max_tokens: 4096,
+        model: env.OLLAMA_MODEL,
+        max_tokens: MAX_COMPLETION_TOKENS,
         messages: [
           { role: "system", content: request.system },
           { role: "user", content: request.user },
@@ -58,7 +68,7 @@ export class OpenRouterClient {
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
-        lastError = new Error("OpenRouter returned an empty response");
+        lastError = new Error(`${env.OLLAMA_MODEL} returned an empty response`);
         continue;
       }
 
@@ -67,18 +77,18 @@ export class OpenRouterClient {
         raw = JSON.parse(content);
       } catch (err) {
         lastError = new Error(
-          `OpenRouter response was not valid JSON, likely truncated (finish_reason: ${response.choices[0]?.finish_reason}): ${err instanceof Error ? err.message : String(err)}`
+          `${env.OLLAMA_MODEL} response was not valid JSON, likely truncated (finish_reason: ${response.choices[0]?.finish_reason}): ${err instanceof Error ? err.message : String(err)}`
         );
         continue;
       }
 
       const parsed = schema.safeParse(raw);
       if (parsed.success) {
-        return { value: parsed.data, usage: accumulated, model: env.OPENROUTER_MODEL };
+        return { value: parsed.data, usage: accumulated, model: env.OLLAMA_MODEL };
       }
       lastError = parsed.error;
     }
 
-    throw new Error(`OpenRouter response for "${request.schemaName}" did not match the expected schema: ${String(lastError)}`);
+    throw new Error(`${env.OLLAMA_MODEL} response for "${request.schemaName}" did not match the expected schema: ${String(lastError)}`);
   }
 }

@@ -1,4 +1,4 @@
-# Because.ai — Business Proposal
+# Because.ai: Business Proposal
 
 Accenture Innovation Challenge 2026 · Round 2 · Track 3, BusinessIntelligence.ai
 Team Status 200: Mrinal Satyarthi, Aman Khakre, Himanshu Verma.
@@ -8,7 +8,7 @@ Team Status 200: Mrinal Satyarthi, Aman Khakre, Himanshu Verma.
 ## 1. Problem framing
 
 Every enterprise tracks dozens of KPIs across fragmented systems. The hard part is not
-building another dashboard — it is knowing which movement matters this week, why it
+building another dashboard. It is knowing which movement matters this week, why it
 happened, and what to do about it, before the number is stale.
 
 Three failure modes are common:
@@ -40,14 +40,14 @@ deterministic again. The LLM is never the source of a quantitative claim.
 | 4 Retrieval + Narrative | Vector search + 1 LLM call | CRM notes filtered to the affected accounts, then one model call writes 5–8 sentences, each tied to an evidence id enforced by schema. |
 | 5 Verifier | 1 isolated LLM call | Re-reads each sentence against only its cited evidence, removes the unsupported ones. Coverage and verdict are computed in code. |
 | 6 Publish decision | Deterministic | Two gates on the verified output: a coverage floor, and a contradiction check across sources. Failing either means the finding publishes without an explanation. |
-| 7 Personas | Deterministic | Selects which verified sentences and actions each audience sees. A strict subset — it can never introduce a claim. |
+| 7 Personas | Deterministic | Selects which verified sentences and actions each audience sees. A strict subset, so it can never introduce a claim. |
 
 Governance is a **KPI contract** per metric: definition, formula, grain, source lineage,
 named drivers, materiality thresholds, owner, refresh cadence, and access rules. The
 pipeline reads it before it reads any data.
 
-When coverage falls below a floor, or sources contradict each other, the engine **abstains**
-— it publishes the movement, states what it checked, and asks a specific question instead of
+When coverage falls below a floor, or sources contradict each other, the engine **abstains**:
+it publishes the movement, states what it checked, and asks a specific question instead of
 guessing. In our run this fired twice, and once was on a finding whose coverage was
 *acceptable*: the contradiction check caught every CRM note for the declining accounts
 reporting business as usual. Coverage alone would have let that through.
@@ -87,7 +87,7 @@ roughly 40% of their time on "what changed and why" triage.
 |---|---|
 | Cost per explained finding | **$0.00078** |
 | Full sweep of 20 metric-region pairs | **$0.011** |
-| Findings that cost nothing at all | 6 of 20 — sparse and suppressed exit before any model call |
+| Findings that cost nothing at all | 6 of 20. Sparse and suppressed exit before any model call |
 | Median end-to-end latency | 6.8s |
 | Attribution (the whole causal drill-down) | 26ms worst case, no model call |
 
@@ -98,7 +98,7 @@ roughly 40% of their time on "what changed and why" triage.
 | Analyst triage time reclaimed | 6 analysts × 40% × ~30% automatable ≈ **0.7 FTE** |
 | Decision latency | Monday-morning digest vs. mid-week manual note: **2–3 days faster** |
 | Model spend, 200 watched series checked daily | ~140 raised × $0.00078 × 30 ≈ **$3.30/month** |
-| Same at 10× the data volume | **unchanged** — detection is free and gates every paid call |
+| Same at 10× the data volume | **unchanged**, because detection is free and gates every paid call |
 
 That last row is the whole economic argument. Cost is a function of **how many findings are
 raised**, not how much data is scanned, because the significance test, the materiality floor,
@@ -107,7 +107,7 @@ that cost nothing to run on everything. The paid model calls only fire on the sm
 of series that actually moved and survived both gates.
 
 Set against roughly $0.70 of analyst time per manual explanation at a mid-market loaded rate,
-the unit economics are not close. The constraint on this system is trust, not cost — which is
+the unit economics are not close. The constraint on this system is trust, not cost, which is
 why the verifier and the abstention path exist.
 
 ## 5. Phased roadmap
@@ -128,7 +128,7 @@ why the verifier and the abstention path exist.
 | Under-flagging → missed liability | Feedback path narrows the band when a team flags a missed move; abstention surfaces "something happened here we cannot explain" rather than staying silent. |
 | Hallucinated explanations | The LLM never produces a number; the isolated verifier removes unsupported sentences; coverage is computed in code and sometimes low on purpose. |
 | Data quality / freshness | The KPI contract carries lineage and refresh cadence; evidence shows source freshness; stale sources are flagged. |
-| Wrong evidence retrieved | Notes are filtered to the accounts attribution surfaced; if that is wrong, the verifier will not catch it — documented as a known limitation and a target for the feedback loop. |
+| Wrong evidence retrieved | Notes are filtered to the accounts attribution surfaced; if that is wrong, the verifier will not catch it. Documented as a known limitation and a target for the feedback loop. |
 | Privacy / regulation (GDPR, India DPDP) | Row- and column-level entitlement enforced at the API; customer names redacted for roles without the PII grant; every finding records the role it was viewed as; retention and consent handled at the connector layer in production. |
 | Adoption | Push model ("explanations, already written"); persona-specific delivery on the channel each role already uses; feedback is one click and visibly changes behaviour. |
 
@@ -142,9 +142,9 @@ One full sweep, reproducible with `bun run demo`:
 |---|---|
 | Combinations checked | 20 (4 metrics × 5 regions) |
 | Explained | 12 |
-| Abstained — evidence would not support a story | 2 |
-| Suppressed — calendar or below the materiality floor | 2 |
-| Sparse — too little history to judge, no model call | 4 |
+| Abstained, evidence would not support a story | 2 |
+| Suppressed by calendar or below the materiality floor | 2 |
+| Sparse, too little history to judge, no model call | 4 |
 | Claims deleted by the verifier | 12 |
 | Evidence gaps named | 20 |
 | Coverage range / mean | 38%–100% / 67% |
@@ -163,7 +163,7 @@ system correctly decided there was nothing to explain.
 | | Production would read | This prototype reads |
 |---|---|---|
 | Warehouse | Snowflake | Postgres + the public Kaggle Superstore dataset |
-| CRM | Salesforce | A generated `notes` table, embedded for real vector search |
+| CRM | Salesforce | A generated `notes` table, embedded locally by `mxbai-embed-large-v1` and searched with real pgvector cosine similarity |
 | Marketing | Google Ads / Meta Ads | A generated daily `marketing_spend` table |
 
 Everything downstream of the connectors runs live: the significance test, the calendar

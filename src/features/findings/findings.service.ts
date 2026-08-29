@@ -16,7 +16,6 @@ import type {
   Trend,
 } from "../../lib/contract";
 import { addUsage, chatCostUsd, embedCostUsd, ZERO_USAGE, type TokenUsage } from "../../lib/pricing";
-import { VOYAGE_MODEL } from "../../lib/voyage";
 import { redactAccountName } from "../../config/roles";
 import type { CachedFindingsRepository } from "../../repositories/cached-findings.repository";
 import type { AttributionResult, AttributionService } from "../attribution/attribution.service";
@@ -105,7 +104,7 @@ export class FindingsService {
       modelCalls,
       tokens: usage,
       embedTokens,
-      estCostUsd: chatCostUsd(env.OPENROUTER_MODEL, usage) + embedCostUsd(VOYAGE_MODEL, embedTokens),
+      estCostUsd: chatCostUsd(this.narrative.model, usage) + embedCostUsd(this.retrieval.embeddingModel, embedTokens),
     });
 
     const detectionResult = await time("Detection", "stats", () =>
