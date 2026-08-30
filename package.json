@@ -16,7 +16,8 @@
     "populate:demo": "bun scripts/populate-demo.ts --scan",
     "demo": "bash scripts/demo.sh",
     "eval": "bun scripts/eval-pipeline.ts",
-    "eval:full": "bun scripts/eval-pipeline.ts --full"
+    "eval:full": "bun scripts/eval-pipeline.ts --full",
+    "bench:verifier": "bun scripts/bench-model.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

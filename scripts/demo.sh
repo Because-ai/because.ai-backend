@@ -8,6 +8,9 @@ bun run seed:calendar
 bun run seed:notes
 bun run seed:sparse
 bun run seed:marketing
-bun run populate:demo
-
-echo "demo data ready"
+if bun run populate:demo; then
+  echo "demo data ready"
+else
+  echo "demo data INCOMPLETE: some combinations failed, see the log above" >&2
+  exit 1
+fi

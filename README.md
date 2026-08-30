@@ -465,11 +465,11 @@ CUDA) for one explained finding, `sales / East` at 2017-01:
 | Cost, any number of findings | **$0.00** |
 | Model calls | 2 |
 | Tokens | 2,568 prompt, 858 completion |
-| Narrative call | 216s |
-| Verifier call | 125s |
-| Retrieval, including model load | 2.5s |
-| Detection, suppression, attribution combined | 66ms, no model call |
-| **End to end** | **5m 44s** |
+| Narrative call | 197s |
+| Verifier call | 142s |
+| Retrieval, including model load | 1.2s |
+| Detection, suppression, attribution combined | 79ms, no model call |
+| **End to end** | **5m 40s** |
 
 The shape is the point. The deterministic stages that produce every number in the output
 finish in well under a tenth of a second. Effectively all of the runtime is the two
@@ -541,6 +541,21 @@ it currently moves only the sigma band.
 **Everything runs locally, and that costs wall-clock time.** Both models are served on the machine running the backend: `mxbai-embed-large-v1` in-process through ONNX, and `qwen2.5:7b-instruct` through Ollama. No customer data leaves the network and there is no per-token cost, but on a CPU-only laptop a single explained finding takes around 5 to 6 minutes, almost all of it in the two generation calls. A full sweep is closer to an hour. This is tolerable because the interface reads `cached_findings` rather than running the pipeline, so `populate:demo` is a one-time cost and the app stays instant afterwards. On a CUDA machine the same run is roughly an order of magnitude faster.
 
 **There is deliberately no hosted fallback.** Neither for embeddings nor for generation. A second code path that nothing exercises would rot without anyone noticing, and a documented option that silently fails is worse than no option.
+
+**Latency is a token problem, not a model-size problem.** We measured `qwen2.5:3b-instruct`
+against the 7B on the same finding expecting a large speedup and did not get one: 5m 40s
+against 5m 44s end to end. Generation dominates, and the smaller model does not generate
+proportionally fewer tokens. If this run needs to be faster, the levers are asking for fewer
+narrative sentences and shorter verifier reasons, or populating fewer combinations. Dropping
+to a smaller model is not one of them.
+
+**The verifier prompt carries worked examples, and it needs them.** Measured over six trials
+on a narrative containing one fabricated causal claim, the earlier prompt caught it 2 times
+out of 6 and wrongly deleted a true claim once. With three worked examples appended, naming
+the specific failure mode of accepting a cause the evidence never mentions, it caught the
+fabrication 6 times out of 6 with no false positives. A small local model does not infer the
+standard from an abstract instruction the way a frontier model does. `bun run bench:verifier`
+re-runs that check against any model.
 
 **Model choice is a trade.** `qwen2.5:7b-instruct` was picked because it holds the strict JSON schema, including the dynamic enum of evidence ids, and because its verifier output still discriminates rather than approving everything it is shown. A smaller model will satisfy the schema and return an empty narrative; that failure is quiet, so any model swap needs checking against a known finding rather than trusting that valid JSON means correct JSON.
 

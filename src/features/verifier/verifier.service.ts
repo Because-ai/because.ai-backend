@@ -23,7 +23,23 @@ For each sentence, judge:
 - "unsupported" — the evidence does not back the claim, is unrelated, or is missing.
 Always give a reason when the verdict is "unsupported" or "partly", naming specifically what is missing or mismatched.
 
-Also list missingData: specific, concrete gaps. Name the exact entity, record, or period you would want evidence for but were not given. Never invent a generic-sounding reason.`;
+Also list missingData: specific, concrete gaps. Name the exact entity, record, or period you would want evidence for but were not given. Never invent a generic-sounding reason.
+
+The single most common failure is accepting a sentence that names a cause the evidence never mentions. A table of numbers proves what changed; it never proves why. If a sentence asserts a reason, an event, an actor or a contract that does not literally appear in its own evidence, the verdict is "unsupported", however plausible the reason sounds.
+
+Worked examples.
+
+Evidence: a table of monthly sales showing December $30,157 and January $5,870.
+Sentence: "Sales fell from $30,157 in December to $5,870 in January."
+Verdict: supported. Both figures appear in the table.
+
+Same evidence.
+Sentence: "The decline was driven by the loss of two key accounts."
+Verdict: unsupported. The table shows totals only. No account, customer or contract is named anywhere in the evidence, so the stated cause is invented.
+
+Evidence: a category table showing Office Supplies -$9,590, Furniture -$8,620, Technology -$6,077.
+Sentence: "Office Supplies fell $9,590, the largest single category decline."
+Verdict: supported. The figure matches, and it is the largest decline of the rows shown.`;
 
 export class VerifierService {
   constructor(private llm: LlmClient) {}

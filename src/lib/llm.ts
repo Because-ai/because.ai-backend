@@ -27,7 +27,7 @@ export class LlmClient {
       apiKey: "ollama",
       baseURL: env.OLLAMA_BASE_URL,
       timeout: REQUEST_TIMEOUT_MS,
-      maxRetries: 0,
+      maxRetries: 3,
     });
   }
 

@@ -1,6 +1,7 @@
 import { getMetricConfig, metricKeys } from "../src/config/metrics";
 import { detectionService, findingsService } from "../src/container";
 import { sql } from "../src/db/client";
+import { env } from "../src/config/env";
 
 const REGIONS = ["West", "East", "Central", "South", "Online"];
 
@@ -36,7 +37,27 @@ async function findMostNotableMonth(
   return { month: best?.month ?? null, sparse: false };
 }
 
+async function assertModelReachable(): Promise<void> {
+  const base = env.OLLAMA_BASE_URL.replace(/\/v1\/?$/, "");
+  try {
+    const res = await fetch(`${base}/api/version`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const { version } = (await res.json()) as { version: string };
+    console.log(`ollama ${version} reachable at ${env.OLLAMA_BASE_URL}, model ${env.OLLAMA_MODEL}\n`);
+  } catch {
+    throw new Error(
+      [
+        `Cannot reach Ollama at ${env.OLLAMA_BASE_URL}.`,
+        "Start it with `ollama serve` in its own terminal, then re-run.",
+        "Use that rather than the desktop app: the desktop app checks for updates hourly, and a",
+        "restart mid-sweep drops every in-flight request.",
+      ].join("\n")
+    );
+  }
+}
+
 async function run() {
+  await assertModelReachable();
   const monthRows = await sql<{ month: string }[]>`
     select distinct to_char(date_trunc('month', order_date), 'YYYY-MM') as month
     from orders
@@ -97,6 +118,11 @@ async function run() {
 
   console.log(`\ndone: ${flagged} flagged, ${suppressed} suppressed, ${skipped} skipped, ${failed} failed`);
   await sql.end();
+
+  if (failed > 0) {
+    console.error(`\n${failed} combination(s) failed; their cached findings are stale or missing.`);
+    process.exit(1);
+  }
 }
 
 run().catch((err) => {
